@@ -1,0 +1,1332 @@
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import BackgroundAtmosphere from "@/components/BackgroundAtmosphere";
+import { Icon, AVAILABLE_ICON_NAMES } from "@/components/Icon";
+import { SocialIcon, SOCIAL_LABELS } from "@/components/Social";
+import {
+  usePricingStore,
+  type PricingTier,
+  type TierAccent,
+} from "@/store/pricing";
+import { useAuthStore } from "@/store/auth";
+import { useSiteContentStore, TERMS_TEMPLATE_BODY, type SampleSiteCard, type SocialLink } from "@/store/siteContent";
+import {
+  ArrowLeft,
+  Eye,
+  LogOut,
+  Plus,
+  RefreshCw,
+  Save,
+  Sparkles,
+  Trash2,
+  DollarSign,
+  UserCircle,
+  MessageSquare,
+  Mail,
+  Phone,
+  LayoutGrid,
+  FileText,
+  Link as LinkIcon,
+  Image as ImageIcon,
+  ToggleLeft,
+  ToggleRight,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const ACCENTS: TierAccent[] = ["cyan", "highlight", "purple"];
+
+type AdminTab = "pricing" | "about" | "contact" | "samples" | "terms";
+const TABS: { id: AdminTab; label: string; icon: React.ReactNode; href: string }[] = [
+  { id: "pricing", label: "Pricing", icon: <DollarSign className="h-4 w-4" />, href: "/pricing" },
+  { id: "about", label: "About", icon: <UserCircle className="h-4 w-4" />, href: "/about" },
+  { id: "samples", label: "Sample Projects", icon: <LayoutGrid className="h-4 w-4" />, href: "/sample-projects" },
+  { id: "contact", label: "Contact", icon: <MessageSquare className="h-4 w-4" />, href: "/contact" },
+  { id: "terms", label: "Terms", icon: <FileText className="h-4 w-4" />, href: "/terms" },
+];
+
+function IconPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (n: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return AVAILABLE_ICON_NAMES;
+    return AVAILABLE_ICON_NAMES.filter((n) => n.toLowerCase().includes(q));
+  }, [query]);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left outline-none transition-all hover:border-neon-cyan/50 focus:border-neon-cyan/60 focus:shadow-[0_0_0_4px_rgba(0,240,255,0.12)]"
+      >
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 ring-1 ring-white/10">
+          <Icon name={value} className="h-4 w-4 text-neon-cyan" />
+        </span>
+        <span className="flex-1 text-sm text-white">{value}</span>
+        <Sparkles className="h-4 w-4 text-slate-500" />
+      </button>
+
+      {open && (
+        <div className="animate-fadeUp absolute left-0 right-0 z-20 mt-2 max-h-72 overflow-auto rounded-2xl border border-white/10 bg-ink-900/95 p-3 backdrop-blur-xl shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search icon..."
+            className="mb-2 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm outline-none placeholder:text-slate-500 focus:border-neon-cyan/50"
+          />
+          <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-8">
+            {filtered.map((n) => {
+              const selected = n === value;
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => {
+                    onChange(n);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "group flex aspect-square items-center justify-center rounded-xl border transition-all",
+                    selected
+                      ? "border-neon-cyan bg-neon-cyan/15 text-neon-cyan shadow-[0_0_0_3px_rgba(0,240,255,0.18)]"
+                      : "border-white/5 bg-white/[0.03] text-slate-300 hover:border-white/20 hover:text-white"
+                  )}
+                  title={n}
+                >
+                  <Icon name={n} className="h-4 w-4" />
+                </button>
+              );
+            })}
+            {filtered.length === 0 && (
+              <p className="col-span-full px-2 py-3 text-center text-xs text-slate-500">
+                No icons match "{query}".
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="mt-2 w-full rounded-xl border border-white/10 py-1.5 text-xs text-slate-400 hover:text-white"
+          >
+            Close
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+  hint,
+}: {
+  label: string;
+  children: React.ReactNode;
+  hint?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+        {label}
+      </span>
+      {children}
+      {hint && <p className="mt-1.5 text-xs text-slate-500">{hint}</p>}
+    </label>
+  );
+}
+
+const inputCls =
+  "w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-slate-500 focus:border-neon-cyan/60 focus:bg-white/[0.06] focus:shadow-[0_0_0_4px_rgba(0,240,255,0.12)]";
+
+function TierEditor({
+  tier,
+  canRemove,
+  onRemove,
+}: {
+  tier: PricingTier;
+  canRemove: boolean;
+  onRemove?: () => void;
+}) {
+  const updateTier = usePricingStore((s) => s.updateTier);
+  const updateFeature = usePricingStore((s) => s.updateFeature);
+  const addFeature = usePricingStore((s) => s.addFeature);
+  const removeFeature = usePricingStore((s) => s.removeFeature);
+
+  const accentLabel: Record<TierAccent, string> = {
+    cyan: "Cyan · Entry",
+    highlight: "Gradient · Featured",
+    purple: "Purple · Premium",
+  };
+
+  return (
+    <div className="glass-pill rounded-3xl p-6 sm:p-7">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span
+            className={cn(
+              "inline-flex h-10 w-10 items-center justify-center rounded-2xl",
+              tier.accent === "cyan" &&
+                "bg-neon-cyan/15 text-neon-cyan ring-1 ring-neon-cyan/40",
+              tier.accent === "purple" &&
+                "bg-neon-purple/15 text-neon-purple ring-1 ring-neon-purple/40",
+              tier.accent === "highlight" &&
+                "bg-gradient-to-br from-neon-cyan to-neon-purple text-ink-950 shadow-neon"
+            )}
+          >
+            <Icon name={tier.iconName} className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="font-display text-lg font-extrabold tracking-tight text-white">
+              {tier.name || "Untitled tier"}
+            </p>
+            <p className="text-xs text-slate-400">{tier.tagline || "—"}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <label className="inline-flex items-center gap-2 text-xs text-slate-400">
+            <input
+              type="checkbox"
+              checked={!!tier.popular}
+              onChange={(e) =>
+                updateTier(tier.id, { popular: e.target.checked })
+              }
+              className="h-4 w-4 accent-neon-cyan"
+            />
+            Mark as{" "}
+            <span className="font-semibold text-white">Most Popular</span>
+          </label>
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={!canRemove}
+            title={
+              canRemove
+                ? "Remove this bundle"
+                : "At least one bundle is required"
+            }
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all",
+              canRemove
+                ? "border-rose-500/25 bg-rose-500/10 text-rose-300 hover:border-rose-500/50 hover:text-rose-200"
+                : "cursor-not-allowed border-white/5 bg-white/[0.03] text-slate-600"
+            )}
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Remove bundle
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Tier title">
+          <input
+            type="text"
+            className={inputCls}
+            value={tier.name}
+            onChange={(e) => updateTier(tier.id, { name: e.target.value })}
+            placeholder="Basic"
+          />
+        </Field>
+        <Field label="Tier icon">
+          <IconPicker
+            value={tier.iconName}
+            onChange={(n) => updateTier(tier.id, { iconName: n })}
+          />
+        </Field>
+
+        <div className="sm:col-span-2">
+          <Field label="Tagline">
+            <input
+              type="text"
+              className={inputCls}
+              value={tier.tagline}
+              onChange={(e) => updateTier(tier.id, { tagline: e.target.value })}
+              placeholder="Short pitch for this tier"
+            />
+          </Field>
+        </div>
+
+        <Field label="Price">
+          <input
+            type="text"
+            className={inputCls}
+            value={tier.price}
+            onChange={(e) => updateTier(tier.id, { price: e.target.value })}
+            placeholder="from $690"
+          />
+        </Field>
+        <Field label="Period">
+          <input
+            type="text"
+            className={inputCls}
+            value={tier.period}
+            onChange={(e) => updateTier(tier.id, { period: e.target.value })}
+            placeholder="per project"
+          />
+        </Field>
+
+        <Field label="Accent color">
+          <div className="flex flex-wrap gap-2">
+            {ACCENTS.map((a) => (
+              <button
+                key={a}
+                type="button"
+                onClick={() => updateTier(tier.id, { accent: a })}
+                className={cn(
+                  "rounded-full border px-3.5 py-2 text-xs font-semibold transition-all",
+                  tier.accent === a
+                    ? a === "cyan"
+                      ? "border-neon-cyan bg-neon-cyan/15 text-neon-cyan shadow-[0_0_0_3px_rgba(0,240,255,0.18)]"
+                      : a === "purple"
+                      ? "border-neon-purple bg-neon-purple/15 text-neon-purple shadow-[0_0_0_3px_rgba(168,85,247,0.18)]"
+                      : "border-transparent bg-gradient-to-r from-neon-cyan to-neon-purple text-ink-950 shadow-neon"
+                    : "border-white/10 bg-white/[0.04] text-slate-300 hover:text-white"
+                )}
+              >
+                {accentLabel[a]}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        <Field label="CTA button text">
+          <input
+            type="text"
+            className={inputCls}
+            value={tier.cta}
+            onChange={(e) => updateTier(tier.id, { cta: e.target.value })}
+            placeholder="Start Basic"
+          />
+        </Field>
+      </div>
+
+      <div className="mt-8 border-t border-white/10 pt-6">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h4 className="font-display text-sm font-bold uppercase tracking-[0.22em] text-slate-300">
+              Feature checklist
+            </h4>
+            <p className="mt-1 text-xs text-slate-500">
+              Edit each row's description and the icon shown next to it.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => addFeature(tier.id)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold text-white transition-all hover:border-neon-cyan/50 hover:text-neon-cyan"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add feature
+          </button>
+        </div>
+
+        <ul className="space-y-3">
+          {tier.features.map((f) => (
+            <li
+              key={f.id}
+              className="group flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center"
+            >
+              <div className="sm:w-56">
+                <IconPicker
+                  value={f.iconName}
+                  onChange={(n) => updateFeature(tier.id, f.id, { iconName: n })}
+                />
+              </div>
+              <div className="flex-1">
+                <input
+                  type="text"
+                  className={inputCls}
+                  value={f.text}
+                  onChange={(e) =>
+                    updateFeature(tier.id, f.id, { text: e.target.value })
+                  }
+                  placeholder="Feature description…"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => removeFeature(tier.id, f.id)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 transition-all hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300"
+                title="Remove feature"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </li>
+          ))}
+          {tier.features.length === 0 && (
+            <li className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">
+              No features yet — add your first one above.
+            </li>
+          )}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+export default function AdminDashboard() {
+  const navigate = useNavigate();
+  const authenticated = useAuthStore((s) => s.authenticated);
+  const logout = useAuthStore((s) => s.logout);
+  const tiers = usePricingStore((s) => s.tiers);
+  const resetPricingDefaults = usePricingStore((s) => s.resetDefaults);
+
+  const about = useSiteContentStore((s) => s.content.about);
+  const contact = useSiteContentStore((s) => s.content.contact);
+  const sample = useSiteContentStore((s) => s.content.sampleProjects);
+  const terms = useSiteContentStore((s) => s.content.terms);
+  const setAbout = useSiteContentStore((s) => s.setAbout);
+  const setAboutBullet = useSiteContentStore((s) => s.setAboutBullet);
+  const addAboutBullet = useSiteContentStore((s) => s.addAboutBullet);
+  const removeAboutBullet = useSiteContentStore((s) => s.removeAboutBullet);
+  const setContact = useSiteContentStore((s) => s.setContact);
+  const setSocial = useSiteContentStore((s) => s.setSocial);
+  const addSocial = useSiteContentStore((s) => s.addSocial);
+  const removeSocial = useSiteContentStore((s) => s.removeSocial);
+  const setProjectOption = useSiteContentStore((s) => s.setProjectOption);
+  const addProjectOption = useSiteContentStore((s) => s.addProjectOption);
+  const removeProjectOption = useSiteContentStore((s) => s.removeProjectOption);
+  const setSampleProjects = useSiteContentStore((s) => s.setSampleProjects);
+  const addSampleCard = useSiteContentStore((s) => s.addSampleCard);
+  const setTerms = useSiteContentStore((s) => s.setTerms);
+  const resetContentDefaults = useSiteContentStore((s) => s.resetDefaults);
+
+  const [tab, setTab] = useState<AdminTab>("pricing");
+  const [saved, setSaved] = useState<null | "ok">(null);
+
+  useEffect(() => {
+    if (!authenticated) navigate("/webify", { replace: true });
+  }, [authenticated, navigate]);
+
+  function handleSave() {
+    setSaved("ok");
+    setTimeout(() => setSaved(null), 1500);
+  }
+
+  function handleResetAll() {
+    resetPricingDefaults();
+    resetContentDefaults();
+  }
+
+  const activeTab = TABS.find((t) => t.id === tab)!;
+
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-ink-950 text-white">
+      <BackgroundAtmosphere />
+      <div className="relative z-10 flex min-h-screen flex-col">
+        <header className="sticky top-0 z-30 border-b border-white/5 bg-ink-950/70 backdrop-blur-xl">
+          <div className="container flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <Link
+                to="/"
+                className="group inline-flex items-center gap-2 text-sm text-slate-400 transition-colors hover:text-neon-cyan"
+              >
+                <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
+                View site
+              </Link>
+              <span className="h-5 w-px bg-white/10" />
+              <p className="font-display text-xs font-bold uppercase tracking-[0.3em] text-neon-cyan">
+                webify Admin
+              </p>
+              <h1 className="font-display text-xl font-black tracking-tight text-white">
+                Content Manager
+              </h1>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleResetAll}
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-slate-300 transition-all hover:border-white/20 hover:text-white"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Reset all defaults
+              </button>
+              <Link
+                to={activeTab.href}
+                target="_blank"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-slate-300 transition-all hover:border-neon-cyan/40 hover:text-neon-cyan"
+              >
+                <Eye className="h-3.5 w-3.5" /> Preview {activeTab.label}
+              </Link>
+              <button
+                type="button"
+                onClick={handleSave}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition-all",
+                  saved === "ok"
+                    ? "bg-emerald-400 text-ink-950 shadow-[0_0_40px_-10px_rgba(52,211,153,0.8)]"
+                    : "bg-neon-cyan text-ink-950 shadow-neon hover:shadow-neonLg"
+                )}
+              >
+                <Save className="h-3.5 w-3.5" />
+                {saved === "ok" ? "Saved ✓" : "Save changes"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  logout();
+                  navigate("/webify", { replace: true });
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-slate-300 transition-all hover:border-rose-500/40 hover:text-rose-300"
+              >
+                <LogOut className="h-3.5 w-3.5" /> Sign out
+              </button>
+            </div>
+          </div>
+
+          <div className="container pb-4">
+            <div className="flex flex-wrap gap-2 rounded-full border border-white/10 bg-white/[0.03] p-1.5 shadow-inner">
+              {TABS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTab(t.id)}
+                  className={cn(
+                    "group inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-all",
+                    tab === t.id
+                      ? "bg-gradient-to-r from-neon-cyan to-neon-purple text-ink-950 shadow-neon"
+                      : "text-slate-300 hover:text-white"
+                  )}
+                >
+                  {t.icon}
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </header>
+
+        <main className="container flex-1 py-10">
+          {tab === "pricing" && (
+            <>
+              <div className="glass-pill mb-8 flex flex-col gap-4 rounded-3xl p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neon-cyan">
+                    Pricing editor
+                  </p>
+                  <h2 className="mt-1 font-display text-2xl font-black tracking-tight">
+                    Update tier titles, icons, features & feature icons
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-sm text-slate-400">
+                    The tiers below render exactly as visitors see them.
+                    Changes auto-save in the browser.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 sm:justify-end">
+                  <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]" />
+                  Live sync to{" "}
+                  <Link to="/pricing" className="text-neon-cyan hover:underline">
+                    /pricing
+                  </Link>
+                  <span className="mx-2 hidden h-4 w-px bg-white/10 sm:inline-block" />
+                  <button
+                    type="button"
+                    onClick={() => usePricingStore.getState().addTier()}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-neon-cyan to-neon-purple px-4 py-2 text-[11px] font-bold text-ink-950 shadow-neon transition-all hover:shadow-neonLg"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add bundle
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-3">
+                {tiers.map((t) => (
+                  <TierEditor
+                    key={t.id}
+                    tier={t}
+                    canRemove={tiers.length > 1}
+                    onRemove={() =>
+                      usePricingStore.getState().removeTier(t.id)
+                    }
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+          {tab === "about" && (
+            <div className="grid gap-6 lg:grid-cols-5">
+              <section className="glass-pill rounded-3xl p-6 sm:p-8 lg:col-span-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neon-cyan">
+                  About page editor
+                </p>
+                <h2 className="mt-1 font-display text-2xl font-black tracking-tight">
+                  Set headlines, description & selling points
+                </h2>
+                <p className="mt-2 text-sm text-slate-400">
+                  The description below preserves line breaks exactly as you
+                  type them.
+                </p>
+
+                <div className="mt-8 grid gap-5 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                      Eyebrow
+                    </span>
+                    <input
+                      type="text"
+                      value={about.eyebrow}
+                      onChange={(e) => setAbout({ eyebrow: e.target.value })}
+                      className={inputCls}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                      Gradient headline word
+                    </span>
+                    <input
+                      type="text"
+                      value={about.titleHighlight}
+                      onChange={(e) =>
+                        setAbout({ titleHighlight: e.target.value })
+                      }
+                      className={inputCls}
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-5">
+                  <label className="block">
+                    <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                      Description
+                    </span>
+                    <textarea
+                      rows={5}
+                      value={about.description}
+                      onChange={(e) => setAbout({ description: e.target.value })}
+                      className={inputCls + " font-sans leading-relaxed"}
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section className="glass-pill rounded-3xl p-6 sm:p-8 lg:col-span-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neon-cyan">
+                      Selling points
+                    </p>
+                    <h3 className="mt-1 font-display text-xl font-black tracking-tight">
+                      Why webify bullets
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addAboutBullet}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold text-white transition-all hover:border-neon-cyan/50 hover:text-neon-cyan"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add bullet
+                  </button>
+                </div>
+
+                <ul className="mt-6 space-y-3">
+                  {about.bullets.map((b, i) => (
+                    <li
+                      key={i}
+                      className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3"
+                    >
+                      <span className="inline-flex h-9 w-9 flex-none items-center justify-center rounded-2xl bg-neon-cyan/15 text-neon-cyan ring-1 ring-neon-cyan/40">
+                        <Sparkles className="h-4 w-4" />
+                      </span>
+                      <input
+                        type="text"
+                        value={b}
+                        onChange={(e) => setAboutBullet(i, e.target.value)}
+                        className={inputCls}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeAboutBullet(i)}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 transition-all hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </div>
+          )}
+
+          {tab === "contact" && (
+            <div className="grid gap-6 lg:grid-cols-5">
+              <section className="glass-pill rounded-3xl p-6 sm:p-8 lg:col-span-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neon-cyan">
+                  Contact Information
+                </p>
+                <h2 className="mt-1 font-display text-2xl font-black tracking-tight">
+                  Copy, links & socials
+                </h2>
+
+                <div className="mt-8 space-y-5">
+                  <label className="block">
+                    <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                      Eyebrow
+                    </span>
+                    <input
+                      type="text"
+                      value={contact.eyebrow}
+                      onChange={(e) => setContact({ eyebrow: e.target.value })}
+                      className={inputCls}
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                      Left-card title
+                    </span>
+                    <input
+                      type="text"
+                      value={contact.introTitle}
+                      onChange={(e) => setContact({ introTitle: e.target.value })}
+                      className={inputCls}
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                      Intro paragraph
+                    </span>
+                    <textarea
+                      rows={3}
+                      value={contact.intro}
+                      onChange={(e) => setContact({ intro: e.target.value })}
+                      className={inputCls}
+                    />
+                  </label>
+
+                  <InfoField
+                    label="Phone"
+                    icon={<Phone className="h-4 w-4 text-neon-cyan" />}
+                    labelValue={contact.phoneLabel}
+                    value={contact.phone}
+                    onChangeLabel={(v) => setContact({ phoneLabel: v })}
+                    onChangeValue={(v) => setContact({ phone: v })}
+                  />
+
+                  <InfoField
+                    label="Email"
+                    icon={<Mail className="h-4 w-4 text-neon-purple" />}
+                    labelValue={contact.emailLabel}
+                    value={contact.email}
+                    onChangeLabel={(v) => setContact({ emailLabel: v })}
+                    onChangeValue={(v) => setContact({ email: v })}
+                  />
+                </div>
+
+                <div className="mt-10">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neon-cyan">
+                        Social links
+                      </p>
+                      <h3 className="mt-1 font-display text-lg font-black tracking-tight">
+                        {contact.followTitle}
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addSocial}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold text-white transition-all hover:border-neon-cyan/50 hover:text-neon-cyan"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add
+                    </button>
+                  </div>
+
+                  <ul className="mt-5 space-y-3">
+                    {contact.socials.map((s) => (
+                      <SocialRow
+                        key={s.id}
+                        social={s}
+                        onChangeLabel={(platform) =>
+                          setSocial(s.id, { platform })
+                        }
+                        onChangeHref={(href) => setSocial(s.id, { href })}
+                        onRemove={() => removeSocial(s.id)}
+                      />
+                    ))}
+                    {contact.socials.length === 0 && (
+                      <li className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">
+                        No socials yet — click Add to add one.
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              </section>
+
+              <section className="glass-pill rounded-3xl p-6 sm:p-8 lg:col-span-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neon-cyan">
+                  Message form
+                </p>
+                <h2 className="mt-1 font-display text-2xl font-black tracking-tight">
+                  Form title, project options & WhatsApp number
+                </h2>
+
+                <div className="mt-8 grid gap-5 sm:grid-cols-2">
+                  <label className="block sm:col-span-2">
+                    <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                      Right-card title
+                    </span>
+                    <input
+                      type="text"
+                      value={contact.formTitle}
+                      onChange={(e) => setContact({ formTitle: e.target.value })}
+                      className={inputCls}
+                    />
+                  </label>
+
+                  <label className="block sm:col-span-2">
+                    <span className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                      <span>WhatsApp number (international, no +)</span>
+                      <span className="font-normal text-slate-500 tracking-normal">
+                        used for the send button
+                      </span>
+                    </span>
+                    <input
+                      type="text"
+                      value={contact.whatsappNumber}
+                      onChange={(e) =>
+                        setContact({ whatsappNumber: e.target.value })
+                      }
+                      placeholder="96181193419"
+                      className={inputCls}
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-10">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neon-cyan">
+                        Project type dropdown
+                      </p>
+                      <h3 className="mt-1 font-display text-lg font-black tracking-tight">
+                        Options list
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addProjectOption}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold text-white transition-all hover:border-neon-cyan/50 hover:text-neon-cyan"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add option
+                    </button>
+                  </div>
+
+                  <ul className="mt-5 grid gap-3 sm:grid-cols-2">
+                    {contact.projectOptions.map((o, i) => (
+                      <li
+                        key={i}
+                        className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2.5"
+                      >
+                        <span className="inline-flex h-8 w-8 flex-none items-center justify-center rounded-xl bg-neon-cyan/15 text-neon-cyan ring-1 ring-neon-cyan/40">
+                          <Sparkles className="h-4 w-4" />
+                        </span>
+                        <input
+                          type="text"
+                          value={o}
+                          onChange={(e) => setProjectOption(i, e.target.value)}
+                          className={inputCls + " py-2.5"}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeProjectOption(i)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 transition-all hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </li>
+                    ))}
+                    {contact.projectOptions.length === 0 && (
+                      <li className="sm:col-span-2 rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">
+                        No options yet.
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {tab === "samples" && (
+            <>
+              <div className="glass-pill mb-8 flex flex-col gap-4 rounded-3xl p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neon-cyan">
+                    Sample Projects editor
+                  </p>
+                  <h2 className="mt-1 font-display text-2xl font-black tracking-tight">
+                    Showcase cards — photo, title, description & view button
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-sm text-slate-400">
+                    Upload project cards. Each card shows a photo with an
+                    optional "Click to view site" button overlay in the top
+                    corner. Card shape only — no "Featured"/"Sale" overlays.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 sm:justify-end">
+                  <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]" />
+                  Live sync to{" "}
+                  <Link to="/sample-projects" className="text-neon-cyan hover:underline">
+                    /sample-projects
+                  </Link>
+                  <span className="mx-2 hidden h-4 w-px bg-white/10 sm:inline-block" />
+                  <button
+                    type="button"
+                    onClick={addSampleCard}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-neon-cyan to-neon-purple px-4 py-2 text-[11px] font-bold text-ink-950 shadow-neon transition-all hover:shadow-neonLg"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add card
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-5">
+                <section className="glass-pill rounded-3xl p-6 sm:p-8 lg:col-span-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neon-cyan">
+                    Page intro
+                  </p>
+                  <h3 className="mt-1 font-display text-xl font-bold tracking-tight text-white">
+                    Headline copy
+                  </h3>
+
+                  <div className="mt-6 space-y-5">
+                    <label className="block">
+                      <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                        Eyebrow
+                      </span>
+                      <input
+                        type="text"
+                        value={sample.eyebrow}
+                        onChange={(e) => setSampleProjects({ eyebrow: e.target.value })}
+                        className={inputCls}
+                      />
+                    </label>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                          Headline prefix
+                        </span>
+                        <input
+                          type="text"
+                          value={sample.title}
+                          onChange={(e) => setSampleProjects({ title: e.target.value })}
+                          className={inputCls}
+                          placeholder="Sites we've"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                          Gradient word
+                        </span>
+                        <input
+                          type="text"
+                          value={sample.titleHighlight}
+                          onChange={(e) => setSampleProjects({ titleHighlight: e.target.value })}
+                          className={inputCls}
+                          placeholder="shipped for clients"
+                        />
+                      </label>
+                    </div>
+
+                    <label className="block">
+                      <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                        Subtitle
+                      </span>
+                      <textarea
+                        rows={3}
+                        value={sample.subtitle}
+                        onChange={(e) => setSampleProjects({ subtitle: e.target.value })}
+                        className={inputCls}
+                      />
+                    </label>
+                  </div>
+                </section>
+
+                <section className="lg:col-span-3">
+                  <div className="grid gap-5 md:grid-cols-2">
+                    {sample.cards.length === 0 && (
+                      <div className="glass-pill md:col-span-2 rounded-3xl p-8 text-center text-sm text-slate-400">
+                        No cards yet — click <b className="text-white">"Add card"</b> above.
+                      </div>
+                    )}
+                    {sample.cards.map((card) => (
+                      <SampleCardEditor key={card.id} card={card} />
+                    ))}
+                  </div>
+                </section>
+              </div>
+            </>
+          )}
+
+          {tab === "terms" && (
+            <div className="grid gap-6 lg:grid-cols-5">
+              <section className="glass-pill rounded-3xl p-6 sm:p-8 lg:col-span-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neon-cyan">
+                  Terms of Service
+                </p>
+                <h2 className="mt-1 font-display text-2xl font-black tracking-tight">
+                  Page headline
+                </h2>
+                <p className="mt-2 text-sm text-slate-400">
+                  Controls the eyebrow, gradient title and intro paragraph
+                  shown above the body on <Link to="/terms" className="text-neon-cyan hover:underline">/terms</Link>.
+                </p>
+
+                <div className="mt-6 space-y-5">
+                  <label className="block">
+                    <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                      Eyebrow
+                    </span>
+                    <input
+                      type="text"
+                      value={terms.eyebrow}
+                      onChange={(e) => setTerms({ eyebrow: e.target.value })}
+                      className={inputCls}
+                    />
+                  </label>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                        Title
+                      </span>
+                      <input
+                        type="text"
+                        value={terms.title}
+                        onChange={(e) => setTerms({ title: e.target.value })}
+                        className={inputCls}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                        Gradient word
+                      </span>
+                      <input
+                        type="text"
+                        value={terms.titleHighlight}
+                        onChange={(e) => setTerms({ titleHighlight: e.target.value })}
+                        className={inputCls}
+                      />
+                    </label>
+                  </div>
+                  <label className="block">
+                    <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                      Intro
+                    </span>
+                    <textarea
+                      rows={3}
+                      value={terms.intro}
+                      onChange={(e) => setTerms({ intro: e.target.value })}
+                      className={inputCls}
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section className="glass-pill rounded-3xl p-6 sm:p-8 lg:col-span-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neon-cyan">
+                      Body
+                    </p>
+                    <h2 className="mt-1 font-display text-2xl font-black tracking-tight">
+                      Terms content
+                    </h2>
+                    <p className="mt-2 text-sm text-slate-400">
+                      Separate paragraphs with a blank line. Line breaks are
+                      preserved.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTerms({ body: TERMS_TEMPLATE_BODY })}
+                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-slate-300 transition-all hover:border-neon-cyan/40 hover:text-neon-cyan"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" /> Restore template
+                  </button>
+                </div>
+
+                <label className="mt-6 block">
+                  <textarea
+                    rows={28}
+                    value={terms.body}
+                    onChange={(e) => setTerms({ body: e.target.value })}
+                    className={inputCls + " font-mono text-[13px] leading-6"}
+                  />
+                </label>
+              </section>
+            </div>
+          )}
+        </main>
+
+        <footer className="border-t border-white/5 py-6">
+          <div className="container flex flex-col items-center justify-between gap-3 text-xs text-slate-500 sm:flex-row">
+            <p>© {new Date().getFullYear()} webify · Admin dashboard</p>
+            <p>
+              Changes persist via <code className="rounded bg-white/5 px-1.5 py-0.5">localStorage</code> on this device.
+            </p>
+          </div>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function SampleCardEditor({ card }: { card: SampleSiteCard }) {
+  const setSampleCard = useSiteContentStore((s) => s.setSampleCard);
+  const removeSampleCard = useSiteContentStore((s) => s.removeSampleCard);
+
+  function handleImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      event.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setSampleCard(card.id, { imageUrl: reader.result });
+      }
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  }
+
+  return (
+    <article className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 text-neon-cyan ring-1 ring-white/10">
+              <LayoutGrid className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <input
+                type="text"
+                value={card.title}
+                onChange={(e) => setSampleCard(card.id, { title: e.target.value })}
+                placeholder="Project title…"
+                className={inputCls + " py-2 font-bold"}
+              />
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => removeSampleCard(card.id)}
+          className="inline-flex h-9 w-9 flex-none items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 transition-all hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300"
+          title="Remove card"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div>
+        <label className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+          <ImageIcon className="h-3.5 w-3.5" /> Project Image
+        </label>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="relative aspect-[4/3] w-full max-w-[180px] flex-none overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]">
+            {card.imageUrl ? (
+              <img src={card.imageUrl} alt={card.title} className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-xs text-slate-500">
+                No image
+              </div>
+            )}
+          </div>
+          <div className="flex flex-1 flex-col gap-3">
+            <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition-all hover:border-neon-cyan/50 hover:text-neon-cyan">
+              <ImageIcon className="h-4 w-4" />
+              Upload JPG, PNG, WEBP...
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+            </label>
+            <p className="text-xs leading-5 text-slate-500">
+              Choose an image from your device. It will be saved in this browser for this card.
+            </p>
+            <button
+              type="button"
+              onClick={() => setSampleCard(card.id, { imageUrl: "" })}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-slate-300 transition-all hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300"
+            >
+              Remove image
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <label className="block">
+        <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+          Description
+        </span>
+        <textarea
+          rows={3}
+          value={card.description}
+          onChange={(e) => setSampleCard(card.id, { description: e.target.value })}
+          className={inputCls}
+          placeholder="What is this project, who was it for, and what did we ship?"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+          <LinkIcon className="h-3.5 w-3.5" /> Live site URL
+        </span>
+        <input
+          type="url"
+          value={card.siteUrl}
+          onChange={(e) => setSampleCard(card.id, { siteUrl: e.target.value })}
+          className={inputCls}
+          placeholder="https://example.com/"
+        />
+      </label>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+        <label className="flex items-center gap-3 text-xs text-slate-300">
+          <button
+            type="button"
+            onClick={() => setSampleCard(card.id, { showViewButton: !card.showViewButton })}
+            className={cn(
+              "text-neon-cyan transition-all",
+              card.showViewButton ? "text-neon-cyan" : "text-slate-600"
+            )}
+            title="Toggle view button"
+          >
+            {card.showViewButton ? (
+              <ToggleRight className="h-6 w-6" />
+            ) : (
+              <ToggleLeft className="h-6 w-6" />
+            )}
+          </button>
+          <span>
+            Button overlay{" "}
+            <b className={card.showViewButton ? "text-neon-cyan" : "text-slate-500"}>
+              {card.showViewButton ? "ON" : "OFF"}
+            </b>{" "}
+            (top corner of photo)
+          </span>
+        </label>
+        <input
+          type="text"
+          value={card.viewButtonLabel}
+          onChange={(e) => setSampleCard(card.id, { viewButtonLabel: e.target.value })}
+          className={inputCls + " max-w-[240px] py-2 text-xs"}
+          placeholder="Click to view site"
+        />
+      </div>
+    </article>
+  );
+}
+
+function InfoField({
+  label,
+  icon,
+  labelValue,
+  value,
+  onChangeLabel,
+  onChangeValue,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  labelValue: string;
+  value: string;
+  onChangeLabel: (v: string) => void;
+  onChangeValue: (v: string) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+      <div className="flex items-center gap-3">
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 ring-1 ring-white/10">
+          {icon}
+        </span>
+        <input
+          type="text"
+          value={labelValue}
+          onChange={(e) => onChangeLabel(e.target.value)}
+          className={inputCls + " py-2"}
+          aria-label={`${label} label`}
+        />
+      </div>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChangeValue(e.target.value)}
+        className={inputCls + " mt-3 py-2 font-bold"}
+        aria-label={`${label} value`}
+      />
+    </div>
+  );
+}
+
+function SocialRow({
+  social,
+  onChangeLabel,
+  onChangeHref,
+  onRemove,
+}: {
+  social: SocialLink;
+  onChangeLabel: (p: SocialLink["platform"]) => void;
+  onChangeHref: (v: string) => void;
+  onRemove: () => void;
+}) {
+  const platforms = [
+    "instagram",
+    "facebook",
+    "twitter",
+    "tiktok",
+    "linkedin",
+    "youtube",
+    "whatsapp",
+  ] as const;
+  return (
+    <li className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-2.5">
+      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 ring-1 ring-white/10 text-slate-200">
+        <SocialIcon platform={social.platform} className="h-4 w-4" />
+      </span>
+      <select
+        value={social.platform}
+        onChange={(e) =>
+          onChangeLabel(e.target.value as SocialLink["platform"])
+        }
+        className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-neon-cyan/50"
+        aria-label="Social platform"
+      >
+        {platforms.map((p) => (
+          <option key={p} value={p} className="bg-ink-900">
+            {SOCIAL_LABELS[p]}
+          </option>
+        ))}
+      </select>
+      <input
+        type="url"
+        value={social.href}
+        onChange={(e) => onChangeHref(e.target.value)}
+        placeholder="https://…"
+        className={inputCls + " py-2.5"}
+      />
+      <button
+        type="button"
+        onClick={onRemove}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 transition-all hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </li>
+  );
+}
