@@ -406,14 +406,14 @@ export default function AdminDashboard() {
   const nextSequenceNumber = useOrdersStore((s) => s.nextSequenceNumber);
 
   const [tab, setTab] = useState<AdminTab>("pricing");
-  const [saved, setSaved] = useState<null | "ok" | "error" | "saving">(null);
+  const [saved, setSaved] = useState<null | "ok" | "warn" | "saving">(null);
+  const [dbSyncFailed, setDbSyncFailed] = useState(false);
 
   useEffect(() => {
     if (!authenticated) navigate("/webify", { replace: true });
   }, [authenticated, navigate]);
 
-  async function handleSave() {
-    setSaved("saving");
+  async function runDbSync() {
     const syncPricing = usePricingStore.getState().syncToDatabase();
     const syncContent = useSiteContentStore.getState().syncToDatabase();
     const syncOrders = useOrdersStore.getState().syncToDatabase();
@@ -422,9 +422,20 @@ export default function AdminDashboard() {
       syncContent,
       syncOrders,
     ]);
-    const allOk = pricingOk && contentOk && ordersOk;
-    setSaved(allOk ? "ok" : "error");
-    setTimeout(() => setSaved(null), 2200);
+    return pricingOk && contentOk && ordersOk;
+  }
+
+  async function handleSave() {
+    setSaved("saving");
+    const dbOk = await runDbSync();
+    if (dbOk) {
+      setDbSyncFailed(false);
+      setSaved("ok");
+    } else {
+      setDbSyncFailed(true);
+      setSaved("warn");
+    }
+    setTimeout(() => setSaved(null), 2800);
   }
 
   async function handleResetAll() {
@@ -434,9 +445,15 @@ export default function AdminDashboard() {
     const syncPricing = usePricingStore.getState().syncToDatabase();
     const syncContent = useSiteContentStore.getState().syncToDatabase();
     const [pricingOk, contentOk] = await Promise.all([syncPricing, syncContent]);
-    const allOk = pricingOk && contentOk;
-    setSaved(allOk ? "ok" : "error");
-    setTimeout(() => setSaved(null), 2200);
+    const dbOk = pricingOk && contentOk;
+    if (dbOk) {
+      setDbSyncFailed(false);
+      setSaved("ok");
+    } else {
+      setDbSyncFailed(true);
+      setSaved("warn");
+    }
+    setTimeout(() => setSaved(null), 2800);
   }
 
   const activeTab = TABS.find((t) => t.id === tab)!;
@@ -489,14 +506,14 @@ export default function AdminDashboard() {
                   saved === "saving" && "opacity-80 cursor-wait",
                   saved === "ok"
                     ? "bg-emerald-400 text-ink-950 shadow-[0_0_40px_-10px_rgba(52,211,153,0.8)]"
-                    : saved === "error"
-                    ? "bg-rose-500 text-white shadow-[0_0_40px_-10px_rgba(244,63,94,0.8)]"
+                    : saved === "warn"
+                    ? "bg-amber-400 text-ink-950 shadow-[0_0_40px_-10px_rgba(251,191,36,0.8)]"
                     : "bg-neon-cyan text-ink-950 shadow-neon hover:shadow-neonLg"
                 )}
               >
                 {saved === "saving" ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : saved === "error" ? (
+                ) : saved === "warn" ? (
                   <AlertCircle className="h-3.5 w-3.5" />
                 ) : (
                   <Save className="h-3.5 w-3.5" />
@@ -505,8 +522,8 @@ export default function AdminDashboard() {
                   ? "Saving…"
                   : saved === "ok"
                   ? "Saved ✓"
-                  : saved === "error"
-                  ? "Save failed — retry"
+                  : saved === "warn"
+                  ? "Saved locally (sync DB)"
                   : "Save changes"}
               </button>
               <button
@@ -543,6 +560,20 @@ export default function AdminDashboard() {
             </div>
           </div>
         </header>
+
+        {dbSyncFailed && (
+          <div className="border-b border-amber-400/20 bg-amber-400/5">
+            <div className="container flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="inline-flex items-center gap-2 text-xs font-semibold text-amber-300">
+                <AlertCircle className="h-3.5 w-3.5" />
+                Changes are saved on this device, but Supabase sync is failing (other users won't see updates yet).
+              </p>
+              <p className="text-xs text-amber-200/80">
+                Tip: apply <span className="font-mono">supabase/migrations/0001_site_content_and_orders.sql</span> in the SQL Editor, or set <span className="font-mono">VITE_SUPABASE_URL</span> + <span className="font-mono">VITE_SUPABASE_ANON_KEY</span>.
+              </p>
+            </div>
+          </div>
+        )}
 
         <main className="container flex-1 py-10">
           {tab === "pricing" && (
