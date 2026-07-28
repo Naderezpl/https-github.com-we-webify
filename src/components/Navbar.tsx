@@ -1,5 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
+import { Shield } from "lucide-react";
 import { buildQuoteLink } from "@/lib/utils";
+import { useAuthStore } from "@/store/auth";
 
 const NAV_LINKS = [
   { label: "Home", to: "/" },
@@ -37,6 +39,10 @@ function NavLink({ item: { label, to, href } }: { item: { label: string; to?: st
 }
 
 export default function Navbar() {
+  const authenticated = useAuthStore((s) => s.authenticated);
+  const adminTo = authenticated ? "/webify/dashboard" : "/webify";
+  const adminLabel = authenticated ? "Admin" : "Admin";
+
   return (
     <header className="relative z-30">
       <div className="container">
@@ -58,14 +64,25 @@ export default function Navbar() {
             ))}
           </ul>
 
-          <a
-            href={buildQuoteLink("navbar")}
-            target="_blank"
-            rel="noreferrer"
-            className="glass-pill hidden items-center rounded-full px-4 py-2 text-sm font-semibold text-white transition-all hover:border-neon-cyan/60 hover:text-neon-cyan sm:inline-flex"
-          >
-            Get a Quote
-          </a>
+          <div className="hidden items-center gap-2 sm:inline-flex">
+            <Link
+              to={adminTo}
+              aria-label="Admin access"
+              title={authenticated ? "Open Admin Dashboard" : "Admin Login (or press 333)"}
+              className="glass-pill inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold text-slate-300 transition-all hover:border-neon-cyan/40 hover:text-neon-cyan"
+            >
+              <Shield className="h-3.5 w-3.5 text-neon-cyan/80" />
+              {adminLabel}
+            </Link>
+            <a
+              href={buildQuoteLink("navbar")}
+              target="_blank"
+              rel="noreferrer"
+              className="glass-pill inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold text-white transition-all hover:border-neon-cyan/60 hover:text-neon-cyan"
+            >
+              Get a Quote
+            </a>
+          </div>
         </nav>
       </div>
     </header>

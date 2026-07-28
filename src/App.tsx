@@ -9,6 +9,7 @@ import SampleProjects from "@/pages/SampleProjects";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
 import Todos from "@/pages/Todos";
+import SecretAdminTrigger from "@/components/SecretAdminTrigger";
 import { usePricingStore } from "@/store/pricing";
 import { useSiteContentStore } from "@/store/siteContent";
 import { useOrdersStore } from "@/store/orders";
@@ -49,6 +50,7 @@ export default function App() {
 
   return (
     <Router>
+      <SecretAdminTrigger />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/pricing" element={<Pricing />} />
