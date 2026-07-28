@@ -32,7 +32,7 @@ export default function About() {
             <div className="grid items-center gap-12 lg:grid-cols-12">
               <div className="lg:col-span-7">
                 <p
-                  className="animate-fadeUp inline-flex items-center gap-2 rounded-full border border-neon-cyan/30 bg-neon-cyan/5 px-4 py-1.5 text-[11px] sm:text-xs font-semibold uppercase tracking-[0.32em] text-neon-cyan"
+                  className="animate-fadeUp inline-flex items-center gap-2 rounded-full border border-neon-cyan/30 bg-neon-cyan/5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-neon-cyan sm:px-4 sm:text-xs sm:tracking-[0.32em]"
                   style={{ animationDelay: "0.05s" }}
                 >
                   <span className="relative flex h-2 w-2">
@@ -43,10 +43,10 @@ export default function About() {
                 </p>
 
                 <h1
-                  className="animate-fadeUp mt-6 font-display font-black leading-[1.02] tracking-tight text-white"
+                  className="animate-fadeUp mt-6 text-balance font-display font-black leading-[1.02] tracking-tight text-white"
                   style={{
                     animationDelay: "0.15s",
-                    fontSize: "clamp(2.4rem, 6vw, 4.6rem)",
+                    fontSize: "clamp(2rem, 8vw, 4.6rem)",
                     textShadow: "0 0 60px rgba(0,240,255,0.1)",
                   }}
                 >
@@ -142,7 +142,7 @@ export default function About() {
         <footer className="border-t border-white/5 py-8">
           <div className="container flex flex-col items-center justify-between gap-4 text-xs text-slate-500 sm:flex-row">
             <p>© {new Date().getFullYear()} webify — Where You Trust Professionals.</p>
-            <div className="flex items-center gap-5">
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center sm:justify-end sm:gap-5">
               <Link to="/about" className="hover:text-neon-cyan">About</Link>
               <Link to="/sample-projects" className="hover:text-neon-cyan">Sample Projects</Link>
               <Link to="/pricing" className="hover:text-neon-cyan">Pricing</Link>

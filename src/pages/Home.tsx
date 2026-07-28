@@ -53,12 +53,12 @@ export default function Home() {
 
           <section className="container py-16 sm:py-20">
             <div className="mx-auto max-w-3xl text-center">
-              <p className="inline-flex items-center gap-2 rounded-full border border-neon-cyan/30 bg-neon-cyan/5 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.32em] text-neon-cyan sm:text-xs">
+              <p className="inline-flex items-center gap-2 rounded-full border border-neon-cyan/30 bg-neon-cyan/5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-neon-cyan sm:px-4 sm:text-xs sm:tracking-[0.32em]">
                 Pricing
                 <span className="h-1 w-1 rounded-full bg-neon-cyan/70" />
                 Live Preview
               </p>
-              <h2 className="mt-6 font-display text-[clamp(2rem,4.8vw,3.4rem)] font-black leading-[1.02] tracking-tight text-white">
+              <h2 className="mt-6 text-balance font-display text-[clamp(1.85rem,7.5vw,3.4rem)] font-black leading-[1.02] tracking-tight text-white">
                 Pricing bundles right on the{" "}
                 <span className="text-gradient-cyber">home page</span>
               </h2>
@@ -143,12 +143,12 @@ export default function Home() {
 
           <section className="container pb-20">
             <div className="mx-auto max-w-3xl text-center">
-              <p className="inline-flex items-center gap-2 rounded-full border border-neon-cyan/30 bg-neon-cyan/5 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.32em] text-neon-cyan sm:text-xs">
+              <p className="inline-flex items-center gap-2 rounded-full border border-neon-cyan/30 bg-neon-cyan/5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-neon-cyan sm:px-4 sm:text-xs sm:tracking-[0.32em]">
                 Sample Projects
                 <span className="h-1 w-1 rounded-full bg-neon-cyan/70" />
                 Portfolio Preview
               </p>
-              <h2 className="mt-6 font-display text-[clamp(2rem,4.8vw,3.4rem)] font-black leading-[1.02] tracking-tight text-white">
+              <h2 className="mt-6 text-balance font-display text-[clamp(1.85rem,7.5vw,3.4rem)] font-black leading-[1.02] tracking-tight text-white">
                 Show sample projects as a{" "}
                 <span className="text-gradient-cyber">homepage section</span>
               </h2>
@@ -228,7 +228,7 @@ export default function Home() {
         <footer className="border-t border-white/5 py-8">
           <div className="container flex flex-col items-center justify-between gap-4 text-xs text-slate-500 sm:flex-row">
             <p>© {new Date().getFullYear()} webify — Where You Trust Professionals.</p>
-            <div className="flex items-center gap-5">
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center sm:justify-end sm:gap-5">
               <Link to="/about" className="hover:text-neon-cyan">About</Link>
               <Link to="/sample-projects" className="hover:text-neon-cyan">Sample Projects</Link>
               <Link to="/pricing" className="hover:text-neon-cyan">Pricing</Link>

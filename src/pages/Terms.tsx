@@ -21,10 +21,10 @@ export default function Terms() {
         <main className="flex-1">
           <section className="container py-16 sm:py-20">
             <div className="mx-auto max-w-3xl">
-              <p className="animate-fadeUp inline-flex items-center gap-2 rounded-full border border-neon-cyan/30 bg-neon-cyan/5 px-4 py-1.5 text-[11px] sm:text-xs font-semibold uppercase tracking-[0.32em] text-neon-cyan" style={{ animationDelay: "0.05s" }}>
+              <p className="animate-fadeUp inline-flex items-center gap-2 rounded-full border border-neon-cyan/30 bg-neon-cyan/5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-neon-cyan sm:px-4 sm:text-xs sm:tracking-[0.32em]" style={{ animationDelay: "0.05s" }}>
                 {terms.eyebrow}
               </p>
-              <h1 className="animate-fadeUp mt-6 font-display font-black leading-[1.02] tracking-tight text-white" style={{ animationDelay: "0.15s", fontSize: "clamp(2.2rem, 5.4vw, 4.2rem)" }}>
+              <h1 className="animate-fadeUp mt-6 text-balance font-display font-black leading-[1.02] tracking-tight text-white" style={{ animationDelay: "0.15s", fontSize: "clamp(1.95rem, 7.6vw, 4.2rem)" }}>
                 {terms.title}{" "}
                 <span className="text-gradient-cyber">{terms.titleHighlight}</span>
               </h1>
@@ -53,7 +53,7 @@ export default function Terms() {
         <footer className="relative z-10 border-t border-white/5 py-8">
           <div className="container flex flex-col items-center justify-between gap-4 text-xs text-slate-500 sm:flex-row">
             <p>© {new Date().getFullYear()} webify — Where You Trust Professionals.</p>
-            <div className="flex items-center gap-5">
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center sm:justify-end sm:gap-5">
               <Link to="/about" className="hover:text-neon-cyan">About</Link>
               <Link to="/sample-projects" className="hover:text-neon-cyan">Sample Projects</Link>
               <Link to="/pricing" className="hover:text-neon-cyan">Pricing</Link>
