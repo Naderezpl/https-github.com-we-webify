@@ -30,6 +30,8 @@ import {
   Image as ImageIcon,
   ToggleLeft,
   ToggleRight,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatOrderCode, useOrdersStore } from "@/store/orders";
@@ -404,20 +406,37 @@ export default function AdminDashboard() {
   const nextSequenceNumber = useOrdersStore((s) => s.nextSequenceNumber);
 
   const [tab, setTab] = useState<AdminTab>("pricing");
-  const [saved, setSaved] = useState<null | "ok">(null);
+  const [saved, setSaved] = useState<null | "ok" | "error" | "saving">(null);
 
   useEffect(() => {
     if (!authenticated) navigate("/webify", { replace: true });
   }, [authenticated, navigate]);
 
-  function handleSave() {
-    setSaved("ok");
-    setTimeout(() => setSaved(null), 1500);
+  async function handleSave() {
+    setSaved("saving");
+    const syncPricing = usePricingStore.getState().syncToDatabase();
+    const syncContent = useSiteContentStore.getState().syncToDatabase();
+    const syncOrders = useOrdersStore.getState().syncToDatabase();
+    const [pricingOk, contentOk, ordersOk] = await Promise.all([
+      syncPricing,
+      syncContent,
+      syncOrders,
+    ]);
+    const allOk = pricingOk && contentOk && ordersOk;
+    setSaved(allOk ? "ok" : "error");
+    setTimeout(() => setSaved(null), 2200);
   }
 
-  function handleResetAll() {
+  async function handleResetAll() {
     resetPricingDefaults();
     resetContentDefaults();
+    setSaved("saving");
+    const syncPricing = usePricingStore.getState().syncToDatabase();
+    const syncContent = useSiteContentStore.getState().syncToDatabase();
+    const [pricingOk, contentOk] = await Promise.all([syncPricing, syncContent]);
+    const allOk = pricingOk && contentOk;
+    setSaved(allOk ? "ok" : "error");
+    setTimeout(() => setSaved(null), 2200);
   }
 
   const activeTab = TABS.find((t) => t.id === tab)!;
@@ -464,15 +483,31 @@ export default function AdminDashboard() {
               <button
                 type="button"
                 onClick={handleSave}
+                disabled={saved === "saving"}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition-all",
+                  saved === "saving" && "opacity-80 cursor-wait",
                   saved === "ok"
                     ? "bg-emerald-400 text-ink-950 shadow-[0_0_40px_-10px_rgba(52,211,153,0.8)]"
+                    : saved === "error"
+                    ? "bg-rose-500 text-white shadow-[0_0_40px_-10px_rgba(244,63,94,0.8)]"
                     : "bg-neon-cyan text-ink-950 shadow-neon hover:shadow-neonLg"
                 )}
               >
-                <Save className="h-3.5 w-3.5" />
-                {saved === "ok" ? "Saved ✓" : "Save changes"}
+                {saved === "saving" ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : saved === "error" ? (
+                  <AlertCircle className="h-3.5 w-3.5" />
+                ) : (
+                  <Save className="h-3.5 w-3.5" />
+                )}
+                {saved === "saving"
+                  ? "Saving…"
+                  : saved === "ok"
+                  ? "Saved ✓"
+                  : saved === "error"
+                  ? "Save failed — retry"
+                  : "Save changes"}
               </button>
               <button
                 type="button"

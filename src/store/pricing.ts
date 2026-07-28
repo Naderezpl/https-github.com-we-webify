@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { createClient } from "@/utils/supabase/client";
 
 export type TierAccent = "cyan" | "purple" | "highlight";
 
@@ -128,11 +129,13 @@ type PricingState = {
   addFeature: (tierId: string) => void;
   removeFeature: (tierId: string, featureId: string) => void;
   resetDefaults: () => void;
+  syncToDatabase: () => Promise<boolean>;
+  syncFromDatabase: () => Promise<boolean>;
 };
 
 export const usePricingStore = create<PricingState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       tiers: defaultTiers,
       setTiers: (tiers) => set({ tiers }),
       addTier: () =>
@@ -190,8 +193,7 @@ export const usePricingStore = create<PricingState>()(
       removeTier: (id) =>
         set((s) => {
           const next = s.tiers.filter((t) => t.id !== id);
-          if (next.length === 0) return s; // keep at least one bundle
-          // Ensure we still have at most one popular marked tier
+          if (next.length === 0) return s;
           if (next.filter((t) => t.popular).length <= 1) return { tiers: next };
           const firstPopular = next.findIndex((t) => t.popular);
           return {
@@ -243,6 +245,52 @@ export const usePricingStore = create<PricingState>()(
           ),
         })),
       resetDefaults: () => set({ tiers: defaultTiers }),
+      syncToDatabase: async () => {
+        try {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          if (!supabaseUrl) return false;
+          const supabase = createClient();
+          const tiers = get().tiers;
+          const { error } = await supabase
+            .from("site_settings")
+            .upsert(
+              { id: "main", pricing: { tiers }, updated_at: new Date().toISOString() },
+              { onConflict: "id" }
+            );
+          if (error) {
+            console.error("Pricing syncToDatabase error:", error);
+            return false;
+          }
+          return true;
+        } catch (err) {
+          console.error("Pricing syncToDatabase failed:", err);
+          return false;
+        }
+      },
+      syncFromDatabase: async () => {
+        try {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          if (!supabaseUrl) return false;
+          const supabase = createClient();
+          const { data, error } = await supabase
+            .from("site_settings")
+            .select("pricing")
+            .eq("id", "main")
+            .maybeSingle();
+          if (error) {
+            console.error("Pricing syncFromDatabase error:", error);
+            return false;
+          }
+          if (!data || !data.pricing || !data.pricing.tiers || !Array.isArray(data.pricing.tiers) || data.pricing.tiers.length === 0) {
+            return false;
+          }
+          set({ tiers: data.pricing.tiers as PricingTier[] });
+          return true;
+        } catch (err) {
+          console.error("Pricing syncFromDatabase failed:", err);
+          return false;
+        }
+      },
     }),
     {
       name: "webify.pricing.v3",

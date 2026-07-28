@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { createClient } from "@/utils/supabase/client";
 
 export type SocialLink = {
   id: string;
@@ -208,11 +209,17 @@ type State = {
   removeSampleCard: (id: string) => void;
   setTerms: (patch: Partial<TermsContent>) => void;
   resetDefaults: () => void;
+  syncToDatabase: () => Promise<boolean>;
+  syncFromDatabase: () => Promise<boolean>;
 };
+
+function isPartialSiteContent(obj: unknown): obj is Partial<SiteContent> {
+  return typeof obj === "object" && obj !== null;
+}
 
 export const useSiteContentStore = create<State>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       content: defaults,
       setAbout: (patch) =>
         set((s) => ({
@@ -383,6 +390,59 @@ export const useSiteContentStore = create<State>()(
           content: { ...s.content, terms: { ...s.content.terms, ...patch } },
         })),
       resetDefaults: () => set({ content: defaults }),
+      syncToDatabase: async () => {
+        try {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          if (!supabaseUrl) return false;
+          const supabase = createClient();
+          const content = get().content;
+          const { error } = await supabase
+            .from("site_settings")
+            .upsert(
+              { id: "main", content: content, updated_at: new Date().toISOString() },
+              { onConflict: "id" }
+            );
+          if (error) {
+            console.error("SiteContent syncToDatabase error:", error);
+            return false;
+          }
+          return true;
+        } catch (err) {
+          console.error("SiteContent syncToDatabase failed:", err);
+          return false;
+        }
+      },
+      syncFromDatabase: async () => {
+        try {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          if (!supabaseUrl) return false;
+          const supabase = createClient();
+          const { data, error } = await supabase
+            .from("site_settings")
+            .select("content")
+            .eq("id", "main")
+            .maybeSingle();
+          if (error) {
+            console.error("SiteContent syncFromDatabase error:", error);
+            return false;
+          }
+          if (!data || !data.content || !isPartialSiteContent(data.content)) {
+            return false;
+          }
+          const dbContent = data.content as Partial<SiteContent>;
+          const merged: SiteContent = {
+            about: { ...defaults.about, ...(dbContent.about ?? {}) },
+            contact: { ...defaults.contact, ...(dbContent.contact ?? {}) },
+            sampleProjects: { ...defaults.sampleProjects, ...(dbContent.sampleProjects ?? {}) },
+            terms: { ...defaults.terms, ...(dbContent.terms ?? {}) },
+          };
+          set({ content: merged });
+          return true;
+        } catch (err) {
+          console.error("SiteContent syncFromDatabase failed:", err);
+          return false;
+        }
+      },
     }),
     {
       name: "webify.sitecontent.v5",
