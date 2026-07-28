@@ -21,7 +21,7 @@ A professional website template and landing page builder for a web agency, built
 - Sample projects showcase with image upload and live site links
 - Contact form with WhatsApp integration
 - Custom About, Terms, and Contact pages — all content is editable
-- Hidden admin panel at `/webify` (default credentials: `adminwebify` / password stored in `auth.ts`)
+- Hidden admin panel for authorized editors
 - Admin dashboard tabs:
   - **Pricing** — Edit tiers, features, icons, prices, CTAs
   - **About** — Headline, description, selling-point bullets
@@ -54,7 +54,7 @@ src/
 │   ├── AdminLogin.tsx             /webify sign-in
 │   └── AdminDashboard.tsx         /webify/dashboard content editor
 ├── store/                         Zustand stores (persisted to localStorage)
-│   ├── auth.ts                    Admin credentials + session
+│   ├── auth.ts                    Admin login validation + session
 │   ├── pricing.ts                 Pricing tiers, features
 │   └── siteContent.ts             About, contact, samples, terms copy
 ├── App.tsx            Router + route definitions
@@ -72,8 +72,6 @@ src/
 | `/contact`            | Contact info + message form         |
 | `/sample-projects`    | Portfolio showcase                  |
 | `/terms`              | Terms of service                    |
-| `/webify`             | Admin login                         |
-| `/webify/dashboard`   | Admin content editor (protected)    |
 | `/other`              | Placeholder — coming soon           |
 
 ## Getting Started
@@ -130,21 +128,21 @@ Edit the defaults objects in:
 
 - `src/store/pricing.ts` — `defaultTiers`
 - `src/store/siteContent.ts` — `defaults` object (about, contact, samples, terms)
-- `src/store/auth.ts` — admin credentials
+- `src/store/auth.ts` — admin login validation
 
 **Option 2 — Admin dashboard (runtime, browser-local)**
 
-1. Navigate to `/webify`
-2. Sign in with the configured admin credentials
+1. Open the hidden admin login
+2. Sign in with the configured admin login
 3. Use the tabs to edit content — changes auto-save to this browser's localStorage
 
 > NOTE: Admin edits are **local to the browser** (they use localStorage, not a backend).
 > For production multi-user editing, connect these stores to a real backend or CMS.
 
-## Default Admin Credentials
+## Admin Access
 
-Default credentials are defined in `src/store/auth.ts`.
-**Change them before deploying to production.**
+Admin login validation is configured in `src/store/auth.ts`.
+Update it before deploying to production.
 
 ## Deployment
 

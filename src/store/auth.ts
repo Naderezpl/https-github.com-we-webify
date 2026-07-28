@@ -1,14 +1,23 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export const ADMIN_CREDENTIALS = {
-  username: "adminwebify",
-  password: "Naderezzy@7",
-} as const;
+const ADMIN_CREDENTIAL_HASH =
+  "f539b0eb409da46547ccdcef4173d932b45064248b327c4047e49705cfe2c49b";
+
+async function hashCredentials(username: string, password: string) {
+  const data = new TextEncoder().encode(`${username}:${password}`);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
 
 type AuthState = {
   authenticated: boolean;
-  login: (username: string, password: string) => { ok: boolean; error?: string };
+  login: (
+    username: string,
+    password: string
+  ) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
 };
 
@@ -16,14 +25,24 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       authenticated: false,
-      login: (u, p) => {
-        if (u === ADMIN_CREDENTIALS.username && p === ADMIN_CREDENTIALS.password) {
+      login: async (u, p) => {
+        if (!u || !p) {
+          return {
+            ok: false,
+            error: "Invalid username or password.",
+          };
+        }
+
+        const submittedHash = await hashCredentials(u, p);
+
+        if (submittedHash === ADMIN_CREDENTIAL_HASH) {
           set({ authenticated: true });
           return { ok: true };
         }
+
         return {
           ok: false,
-          error: "Invalid credentials. Try adminwebify / Naderezzy@7",
+          error: "Invalid username or password.",
         };
       },
       logout: () => set({ authenticated: false }),

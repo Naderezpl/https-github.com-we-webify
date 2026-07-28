@@ -23,8 +23,8 @@ export default function AdminLogin() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    setTimeout(() => {
-      const r = login(username.trim(), password);
+    setTimeout(async () => {
+      const r = await login(username.trim(), password);
       setLoading(false);
       if (!r.ok) {
         setError(r.error ?? "Sign in failed");
@@ -37,7 +37,7 @@ export default function AdminLogin() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-ink-950 text-white">
       <BackgroundAtmosphere />
-      <div className="relative z-10 flex min-h-screen items-center justify-center p-6">
+      <div className="relative z-10 flex min-h-screen items-center justify-center px-[39px] py-6 sm:p-6">
         <div className="w-full max-w-md">
           <Link
             to="/"
@@ -108,7 +108,7 @@ export default function AdminLogin() {
                     autoComplete="username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="adminwebify"
+                    placeholder="Enter username"
                     className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 pl-11 text-sm text-white placeholder:text-slate-500 outline-none transition-all focus:border-neon-cyan/60 focus:bg-white/[0.06] focus:shadow-[0_0_0_4px_rgba(0,240,255,0.12)]"
                   />
                   <User className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -157,7 +157,7 @@ export default function AdminLogin() {
               </button>
 
               <p className="text-center text-xs text-slate-500">
-                This page is hidden from the public navigation.
+                Authorized users only.
               </p>
             </form>
           </div>
