@@ -32,14 +32,16 @@ import {
   ToggleRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatOrderCode, useOrdersStore } from "@/store/orders";
 
 const ACCENTS: TierAccent[] = ["cyan", "highlight", "purple"];
 
-type AdminTab = "pricing" | "about" | "contact" | "samples" | "terms";
-const TABS: { id: AdminTab; label: string; icon: React.ReactNode; href: string }[] = [
+type AdminTab = "pricing" | "about" | "contact" | "samples" | "orders" | "terms";
+const TABS: { id: AdminTab; label: string; icon: React.ReactNode; href?: string }[] = [
   { id: "pricing", label: "Pricing", icon: <DollarSign className="h-4 w-4" />, href: "/pricing" },
   { id: "about", label: "About", icon: <UserCircle className="h-4 w-4" />, href: "/about" },
   { id: "samples", label: "Sample Projects", icon: <LayoutGrid className="h-4 w-4" />, href: "/sample-projects" },
+  { id: "orders", label: "Orders", icon: <Phone className="h-4 w-4" /> },
   { id: "contact", label: "Contact", icon: <MessageSquare className="h-4 w-4" />, href: "/contact" },
   { id: "terms", label: "Terms", icon: <FileText className="h-4 w-4" />, href: "/terms" },
 ];
@@ -398,6 +400,8 @@ export default function AdminDashboard() {
   const addSampleCard = useSiteContentStore((s) => s.addSampleCard);
   const setTerms = useSiteContentStore((s) => s.setTerms);
   const resetContentDefaults = useSiteContentStore((s) => s.resetDefaults);
+  const orders = useOrdersStore((s) => s.orders);
+  const nextSequenceNumber = useOrdersStore((s) => s.nextSequenceNumber);
 
   const [tab, setTab] = useState<AdminTab>("pricing");
   const [saved, setSaved] = useState<null | "ok">(null);
@@ -448,13 +452,15 @@ export default function AdminDashboard() {
               >
                 <RefreshCw className="h-3.5 w-3.5" /> Reset all defaults
               </button>
-              <Link
-                to={activeTab.href}
-                target="_blank"
-                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-slate-300 transition-all hover:border-neon-cyan/40 hover:text-neon-cyan"
-              >
-                <Eye className="h-3.5 w-3.5" /> Preview {activeTab.label}
-              </Link>
+              {activeTab.href && (
+                <Link
+                  to={activeTab.href}
+                  target="_blank"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-slate-300 transition-all hover:border-neon-cyan/40 hover:text-neon-cyan"
+                >
+                  <Eye className="h-3.5 w-3.5" /> Preview {activeTab.label}
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={handleSave}
@@ -964,6 +970,140 @@ export default function AdminDashboard() {
                   </div>
                 </section>
               </div>
+            </>
+          )}
+
+          {tab === "orders" && (
+            <>
+              <div className="glass-pill mb-8 flex flex-col gap-4 rounded-3xl p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neon-cyan">
+                    Orders inbox
+                  </p>
+                  <h2 className="mt-1 font-display text-2xl font-black tracking-tight">
+                    Customer bundle orders
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-sm text-slate-400">
+                    Each order stores the customer phone number, site name,
+                    customer name, notes, and the generated
+                    <span className="mx-1 font-semibold text-white">
+                      PN-0001-Bundle Name
+                    </span>
+                    code.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3 text-xs text-slate-300">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                    <p className="text-slate-500">Total orders</p>
+                    <p className="mt-1 font-display text-xl font-black text-white">
+                      {orders.length}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                    <p className="text-slate-500">Next order code</p>
+                    <p className="mt-1 font-display text-base font-black text-white">
+                      {formatOrderCode(nextSequenceNumber, "Bundle Name")}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {orders.length > 0 ? (
+                <div className="grid gap-5">
+                  {orders.map((order) => (
+                    <article
+                      key={order.id}
+                      className="rounded-3xl border border-white/10 bg-white/[0.03] p-5"
+                    >
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neon-cyan">
+                            {order.orderCode}
+                          </p>
+                          <h3 className="mt-2 font-display text-xl font-black tracking-tight text-white">
+                            {order.siteName}
+                          </h3>
+                          <p className="mt-1 text-sm text-slate-400">
+                            {order.bundleName} bundle
+                          </p>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          {new Date(order.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+
+                      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                            Customer name
+                          </p>
+                          <p className="mt-2 text-sm font-semibold text-white">
+                            {order.customerName}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                            Customer number
+                          </p>
+                          <p className="mt-2 text-sm font-semibold text-white">
+                            {order.customerPhone}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                            Site name
+                          </p>
+                          <p className="mt-2 text-sm font-semibold text-white">
+                            {order.siteName}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                            Bundle code
+                          </p>
+                          <p className="mt-2 text-sm font-semibold text-white">
+                            {order.orderCode}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 grid gap-4 lg:grid-cols-[1.4fr,1fr]">
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                            Notes
+                          </p>
+                          <p className="mt-2 text-sm leading-6 text-slate-300">
+                            {order.notes || "No notes added."}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                            Bundle features
+                          </p>
+                          <ul className="mt-2 space-y-2 text-sm text-slate-300">
+                            {order.bundleFeatures.map((feature, index) => (
+                              <li key={`${order.id}-${index}`} className="flex gap-2">
+                                <span className="text-neon-cyan">•</span>
+                                <span>{feature}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="glass-pill rounded-3xl p-10 text-center">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neon-cyan">
+                    No orders yet
+                  </p>
+                  <p className="mt-3 text-sm text-slate-400">
+                    When a customer submits a bundle from the pricing page,
+                    their order will show up here with the generated PN code.
+                  </p>
+                </div>
+              )}
             </>
           )}
 

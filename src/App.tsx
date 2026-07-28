@@ -8,6 +8,7 @@ import SampleProjects from "@/pages/SampleProjects";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
 import Todos from "@/pages/Todos";
+import SecretAdminTrigger from "@/components/SecretAdminTrigger";
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/webify/dashboard" element={<AdminDashboard />} />
         <Route path="/other" element={<div className="text-center text-xl">Other Page - Coming Soon</div>} />
       </Routes>
+      <SecretAdminTrigger />
     </Router>
   );
 }

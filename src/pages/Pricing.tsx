@@ -1,12 +1,31 @@
+import { type FormEvent, useState } from "react";
 import BackgroundAtmosphere from "@/components/BackgroundAtmosphere";
 import AdminAccessLink from "@/components/AdminAccessLink";
 import Navbar from "@/components/Navbar";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Icon } from "@/components/Icon";
 import { usePricingStore } from "@/store/pricing";
-import type { TierAccent } from "@/store/pricing";
-import { buildQuoteLink } from "@/lib/utils";
+import type { PricingTier, TierAccent } from "@/store/pricing";
+import { useSiteContentStore } from "@/store/siteContent";
+import { buildWhatsAppLink } from "@/lib/utils";
+import { formatOrderCode, useOrdersStore } from "@/store/orders";
+
+type OrderFormState = {
+  customerName: string;
+  customerPhone: string;
+  siteName: string;
+  notes: string;
+};
+
+const EMPTY_ORDER_FORM: OrderFormState = {
+  customerName: "",
+  customerPhone: "",
+  siteName: "",
+  notes: "",
+};
+
+const createEmptyOrderForm = (): OrderFormState => ({ ...EMPTY_ORDER_FORM });
 
 function accentClasses(accent: TierAccent) {
   if (accent === "cyan") {
@@ -47,6 +66,70 @@ function accentClasses(accent: TierAccent) {
 
 export default function Pricing() {
   const tiers = usePricingStore((s) => s.tiers);
+  const whatsappNumber = useSiteContentStore(
+    (s) => s.content.contact.whatsappNumber
+  );
+  const createOrder = useOrdersStore((s) => s.createOrder);
+  const nextSequenceNumber = useOrdersStore((s) => s.nextSequenceNumber);
+  const [selectedTier, setSelectedTier] = useState<PricingTier | null>(null);
+  const [orderForm, setOrderForm] = useState<OrderFormState>(createEmptyOrderForm);
+
+  const nextOrderCode = selectedTier
+    ? formatOrderCode(nextSequenceNumber, selectedTier.name)
+    : "";
+
+  function openOrderModal(tier: PricingTier) {
+    setSelectedTier(tier);
+    setOrderForm(createEmptyOrderForm());
+  }
+
+  function closeOrderModal() {
+    setSelectedTier(null);
+    setOrderForm(createEmptyOrderForm());
+  }
+
+  function updateOrderForm<K extends keyof OrderFormState>(
+    key: K,
+    value: OrderFormState[K]
+  ) {
+    setOrderForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function handleOrderSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedTier) return;
+
+    const order = createOrder({
+      bundleId: selectedTier.id,
+      bundleName: selectedTier.name,
+      customerName: orderForm.customerName,
+      customerPhone: orderForm.customerPhone,
+      siteName: orderForm.siteName,
+      notes: orderForm.notes,
+      bundleFeatures: selectedTier.features.map((feature) => feature.text),
+    });
+
+    const lines = [
+      `*New webify bundle order*`,
+      ``,
+      `Order number: ${order.orderCode}`,
+      `Bundle chosen: ${order.bundleName}`,
+      `Customer name: ${order.customerName}`,
+      `Customer phone: ${order.customerPhone}`,
+      `Site name: ${order.siteName}`,
+      `Requested notes: ${order.notes || "None provided"}`,
+      ``,
+      `Bundle features:`,
+      ...order.bundleFeatures.map((feature) => `- ${feature}`),
+    ];
+
+    const whatsappLink = whatsappNumber.trim()
+      ? buildWhatsAppLink(lines, whatsappNumber.trim())
+      : buildWhatsAppLink(lines);
+
+    window.open(whatsappLink, "_blank", "noreferrer");
+    closeOrderModal();
+  }
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-ink-950 text-white">
@@ -157,10 +240,9 @@ export default function Pricing() {
                           </ul>
 
                           <div className="mt-8 pt-6 border-t border-white/10">
-                            <a
-                              href={buildQuoteLink(`pricing — ${tier.name}`)}
-                              target="_blank"
-                              rel="noreferrer"
+                            <button
+                              type="button"
+                              onClick={() => openOrderModal(tier)}
                               className={`group/btn inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3.5 text-sm font-bold transition-all duration-300 hover:-translate-y-0.5 ${c.button}`}
                             >
                               {tier.cta}
@@ -168,9 +250,10 @@ export default function Pricing() {
                                 className="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-0.5"
                                 strokeWidth={2.8}
                               />
-                            </a>
+                            </button>
                             <p className="mt-3 text-center text-xs text-slate-500">
-                              Fully custom builds available —{" "}
+                              Add your site name, phone number, and notes before
+                              sending your order on WhatsApp.{" "}
                               <Link
                                 to="/"
                                 className="text-neon-cyan/90 underline-offset-4 hover:underline"
@@ -241,10 +324,9 @@ export default function Pricing() {
                               </ul>
 
                               <div className="mt-8 pt-6 border-t border-white/10">
-                                <a
-                                  href={buildQuoteLink(`pricing — ${tier.name}`)}
-                                  target="_blank"
-                                  rel="noreferrer"
+                                <button
+                                  type="button"
+                                  onClick={() => openOrderModal(tier)}
                                   className={`group/btn inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3.5 text-sm font-bold transition-all duration-300 hover:-translate-y-0.5 ${c.button}`}
                                 >
                                   {tier.cta}
@@ -252,9 +334,10 @@ export default function Pricing() {
                                     className="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-0.5"
                                     strokeWidth={2.8}
                                   />
-                                </a>
+                                </button>
                                 <p className="mt-3 text-center text-xs text-slate-500">
-                                  Fully custom builds available —{" "}
+                                  Add your site name, phone number, and notes before
+                                  sending your order on WhatsApp.{" "}
                                   <Link
                                     to="/"
                                     className="text-neon-cyan/90 underline-offset-4 hover:underline"
@@ -314,6 +397,132 @@ export default function Pricing() {
           </div>
         </footer>
       </div>
+
+      {selectedTier && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/85 px-4 py-8 backdrop-blur-md">
+          <div className="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-[#070b14]/95 p-6 shadow-[0_25px_120px_rgba(0,0,0,0.65)] sm:p-8">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neon-cyan">
+                  Bundle order
+                </p>
+                <h3 className="mt-2 font-display text-2xl font-black tracking-tight text-white">
+                  {selectedTier.name}
+                </h3>
+                <p className="mt-2 text-sm text-slate-400">
+                  Order number:{" "}
+                  <span className="font-semibold text-white">{nextOrderCode}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeOrderModal}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-slate-400 transition-all hover:border-white/20 hover:text-white"
+                aria-label="Close order form"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form className="mt-8 space-y-5" onSubmit={handleOrderSubmit}>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                    Customer name
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={orderForm.customerName}
+                    onChange={(e) => updateOrderForm("customerName", e.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-slate-500 focus:border-neon-cyan/60 focus:bg-white/[0.06] focus:shadow-[0_0_0_4px_rgba(0,240,255,0.12)]"
+                    placeholder="Your full name"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                    Customer phone
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={orderForm.customerPhone}
+                    onChange={(e) => updateOrderForm("customerPhone", e.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-slate-500 focus:border-neon-cyan/60 focus:bg-white/[0.06] focus:shadow-[0_0_0_4px_rgba(0,240,255,0.12)]"
+                    placeholder="+961..."
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                  Site name
+                </span>
+                <input
+                  type="text"
+                  required
+                  value={orderForm.siteName}
+                  onChange={(e) => updateOrderForm("siteName", e.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-slate-500 focus:border-neon-cyan/60 focus:bg-white/[0.06] focus:shadow-[0_0_0_4px_rgba(0,240,255,0.12)]"
+                  placeholder="Business or website name"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                  Notes
+                </span>
+                <textarea
+                  rows={5}
+                  value={orderForm.notes}
+                  onChange={(e) => updateOrderForm("notes", e.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-slate-500 focus:border-neon-cyan/60 focus:bg-white/[0.06] focus:shadow-[0_0_0_4px_rgba(0,240,255,0.12)]"
+                  placeholder="Tell us what you want, special requests, colors, pages, or features."
+                />
+              </label>
+
+              <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neon-cyan">
+                  Included bundle features
+                </p>
+                <ul className="mt-4 space-y-2 text-sm text-slate-300">
+                  {selectedTier.features.map((feature) => (
+                    <li key={feature.id} className="flex gap-3">
+                      <span className="mt-0.5 inline-flex h-5 w-5 flex-none items-center justify-center rounded-full border border-neon-cyan/30 bg-neon-cyan/10 text-neon-cyan">
+                        <Icon
+                          name={feature.iconName}
+                          fallback="Check"
+                          className="h-3 w-3"
+                          strokeWidth={2.6}
+                        />
+                      </span>
+                      <span>{feature.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeOrderModal}
+                  className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-slate-300 transition-all hover:border-white/20 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-neon-cyan to-neon-purple px-6 py-3 text-sm font-bold text-ink-950 shadow-neon transition-all hover:shadow-neonLg"
+                >
+                  Send Order on WhatsApp
+                  <ArrowRight className="h-4 w-4" strokeWidth={2.8} />
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
