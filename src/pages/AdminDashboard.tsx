@@ -511,8 +511,11 @@ export default function AdminDashboard() {
     setDraftContent((c) => ({ ...c, about: { ...c.about, ...p } }));
   const patchContact = (p: Partial<SiteContent["contact"]>) =>
     setDraftContent((c) => ({ ...c, contact: { ...c.contact, ...p } }));
-  const patchSampleProjects = (p: Partial<Omit<SiteContent["sampleProjects"], "cards">>) =>
-    setDraftContent((c) => ({ ...c, sampleProjects: { ...c.sampleProjects, ...p } }));
+  const patchSampleProjects = (p: Partial<SiteContent["sampleProjects"]>) =>
+    setDraftContent((c) => ({
+      ...c,
+      sampleProjects: { ...c.sampleProjects, ...p },
+    }));
   const patchTerms = (p: Partial<SiteContent["terms"]>) =>
     setDraftContent((c) => ({ ...c, terms: { ...c.terms, ...p } }));
 
@@ -549,10 +552,21 @@ export default function AdminDashboard() {
     const syncPricing = usePricingStore.getState().syncToDatabase();
     const syncContent = useSiteContentStore.getState().syncToDatabase();
     const syncOrders = useOrdersStore.getState().syncToDatabase();
-    const [pricingOk, contentOk, ordersOk] = await Promise.all([
-      syncPricing, syncContent, syncOrders,
-    ]);
-    return pricingOk && contentOk && ordersOk;
+    const results = await Promise.allSettled([syncPricing, syncContent, syncOrders]);
+    const [pricingRes, contentRes, ordersRes] = results;
+    const ok = (r: PromiseSettledResult<boolean>) =>
+      r.status === "fulfilled" && r.value === true;
+    const pricingOk = ok(pricingRes);
+    const contentOk = ok(contentRes);
+    const ordersOk = ok(ordersRes);
+    const errorList: string[] = [];
+    if (!pricingOk) errorList.push("Pricing tiers (site_settings.pricing JSONB)");
+    if (!contentOk) errorList.push("Content — about / sample projects / contact / terms (site_settings.content JSONB)");
+    if (!ordersOk) errorList.push("Orders / completed status / deletes");
+    return {
+      success: pricingOk && contentOk && ordersOk,
+      errorMessage: errorList.length === 0 ? null : errorList.join("  ·  "),
+    };
   }
 
   async function runDiagnostics() {
@@ -564,7 +578,7 @@ export default function AdminDashboard() {
       const supabase = createClient();
       const { data, error } = await supabase
         .from("site_settings")
-        .select("id, updated_at")
+        .select("id, updated_at, pricing, content")
         .eq("id", "main")
         .maybeSingle();
       if (error) throw new Error(`[${error.code}] ${error.message}`);
@@ -591,13 +605,17 @@ export default function AdminDashboard() {
     initialContentRef.current = cloneContent(draftContent);
 
     setSaved("saving");
-    const dbOk = await runDbSync();
-    if (dbOk) {
+    const result = await runDbSync();
+    if (result.success) {
       setDbSyncFailed(false);
       setSaved("ok");
     } else {
       setDbSyncFailed(true);
       setSaved("warn");
+      if (result.errorMessage) {
+        setDiagnoseState({ ok: false, error: `Failed to save: ${result.errorMessage}. Check Supabase network or SQL migration.` });
+        setTimeout(() => setDiagnoseState(null), 5000);
+      }
     }
     setTimeout(() => setSaved(null), 2800);
   }
@@ -668,24 +686,34 @@ export default function AdminDashboard() {
     patchContact({ projectOptions: contact.projectOptions.filter((_, idx) => idx !== i) });
 
   const setSampleCard = (id: string, patch: Partial<SampleSiteCard>) =>
-    patchSampleProjects({
-      cards: sampleProjects.cards.map((c) => (c.id === id ? { ...c, ...patch } : c)),
-    } as never);
+    setDraftContent((c) => ({
+      ...c,
+      sampleProjects: {
+        ...c.sampleProjects,
+        cards: c.sampleProjects.cards.map((card) =>
+          card.id === id ? { ...card, ...patch } : card
+        ),
+      },
+    }));
   const addSampleCard = () =>
-    patchSampleProjects({
-      cards: [
-        ...sampleProjects.cards,
-        {
-          id: uid(),
-          title: "New project",
-          description: "Describe this project briefly.",
-          imageUrl: "",
-          siteUrl: "https://example.com/",
-          showViewButton: true,
-          viewButtonLabel: "Click to view site",
-        },
-      ],
-    } as never);
+    setDraftContent((c) => ({
+      ...c,
+      sampleProjects: {
+        ...c.sampleProjects,
+        cards: [
+          ...c.sampleProjects.cards,
+          {
+            id: uid(),
+            title: "New project",
+            description: "Describe this project briefly.",
+            imageUrl: "",
+            siteUrl: "https://example.com/",
+            showViewButton: true,
+            viewButtonLabel: "Click to view site",
+          },
+        ],
+      },
+    }));
 
   const activeTab = TABS.find((t) => t.id === tab)!;
 
@@ -1372,9 +1400,13 @@ export default function AdminDashboard() {
                         card={card}
                         onChange={(next) => setSampleCard(card.id, next)}
                         onRemove={() =>
-                          patchSampleProjects({
-                            cards: sampleProjects.cards.filter((c) => c.id !== card.id),
-                          } as never)
+                          setDraftContent((c) => ({
+                            ...c,
+                            sampleProjects: {
+                              ...c.sampleProjects,
+                              cards: c.sampleProjects.cards.filter((x) => x.id !== card.id),
+                            },
+                          }))
                         }
                       />
                     ))}
@@ -1737,21 +1769,104 @@ function SampleCardEditor({
   onChange: (patch: Partial<SampleSiteCard>) => void;
   onRemove: () => void;
 }) {
-  function handleImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  async function compressImage(
+    file: File,
+    maxSizeBytes = 600_000,
+    maxEdgePx = 1600,
+    qualityStart = 0.82
+  ): Promise<string> {
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Could not read image file"));
+      reader.onload = () => {
+        const result = reader.result;
+        if (typeof result !== "string") {
+          reject(new Error("Image reader produced no data"));
+          return;
+        }
+        const img = new Image();
+        img.onerror = () => reject(new Error("Could not decode image"));
+        img.onload = () => {
+          let { naturalWidth: w, naturalHeight: h } = img;
+          const maxSide = Math.max(w, h);
+          if (maxSide > maxEdgePx) {
+            const scale = maxEdgePx / maxSide;
+            w = Math.round(w * scale);
+            h = Math.round(h * scale);
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            resolve(result);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, w, h);
+
+          const type = file.type === "image/png" ? "image/png" : "image/webp";
+          const fallbackType = file.type === "image/png" ? "image/png" : "image/jpeg";
+
+          const tryQuality = (q: number, useType: string): Promise<string> =>
+            new Promise((resQ, rejQ) => {
+              canvas.toBlob(
+                (blob) => {
+                  if (!blob) {
+                    rejQ(new Error("Could not encode image"));
+                    return;
+                  }
+                  const r2 = new FileReader();
+                  r2.onerror = () => rejQ(new Error("Could not re-read blob"));
+                  r2.onload = () => {
+                    const out = r2.result;
+                    if (typeof out !== "string") {
+                      rejQ(new Error("Blob reader produced no data"));
+                      return;
+                    }
+                    if (blob.size <= maxSizeBytes || q <= 0.42) {
+                      resQ(out);
+                      return;
+                    }
+                    tryQuality(Math.max(0.42, q - 0.12), useType).then(resQ, rejQ);
+                  };
+                  r2.readAsDataURL(blob);
+                },
+                useType,
+                q
+              );
+            });
+
+          tryQuality(qualityStart, type)
+            .then(resolve)
+            .catch(() =>
+              tryQuality(0.72, fallbackType).then(resolve, () => resolve(result))
+            );
+        };
+        img.src = result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    event.target.value = "";
+    setUploadError(null);
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      event.target.value = "";
+    if (!file.type.startsWith("image/")) return;
+    if (file.size > 18 * 1024 * 1024) {
+      setUploadError("File is too large (max 18 MB). Pick a smaller image.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        onChange({ imageUrl: reader.result });
-      }
-    };
-    reader.readAsDataURL(file);
-    event.target.value = "";
+    try {
+      const compressed = await compressImage(file);
+      onChange({ imageUrl: compressed });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setUploadError(msg || "Failed to process image. Try a different file.");
+    }
   }
 
   return (
@@ -1809,8 +1924,13 @@ function SampleCardEditor({
               />
             </label>
             <p className="text-xs leading-5 text-slate-500">
-              Choose an image from your device. Stays local to draft until Save.
+              Choose an image from your device. Compressed automatically (max 600 KB) before save.
             </p>
+            {uploadError ? (
+              <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200">
+                {uploadError}
+              </p>
+            ) : null}
             <button
               type="button"
               onClick={() => onChange({ imageUrl: "" })}
