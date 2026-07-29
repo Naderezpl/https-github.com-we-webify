@@ -149,13 +149,9 @@ export default function Home() {
                 Portfolio Preview
               </p>
               <h2 className="mt-6 text-balance font-display text-[clamp(1.85rem,7.5vw,3.4rem)] font-black leading-[1.02] tracking-tight text-white">
-                Show sample projects as a{" "}
-                <span className="text-gradient-cyber">homepage section</span>
+                Showcase{" "}
+                <span className="text-gradient-cyber">Sample Projects</span>
               </h2>
-              <p className="mt-6 text-base text-slate-300/90 sm:text-lg">
-                Your latest project cards now appear directly on the home page,
-                so visitors can see your work without leaving the landing flow.
-              </p>
             </div>
 
             <div className="mt-14 flex flex-wrap items-start justify-center gap-6 md:gap-7">
