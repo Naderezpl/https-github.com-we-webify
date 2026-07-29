@@ -1,4 +1,5 @@
 import BackgroundAtmosphere from "@/components/BackgroundAtmosphere";
+import AdminAccessLink from "@/components/AdminAccessLink";
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
 import { Icon } from "@/components/Icon";
@@ -233,6 +234,9 @@ export default function Home() {
               <Link to="/pricing" className="hover:text-neon-cyan">Pricing</Link>
               <Link to="/contact" className="hover:text-neon-cyan">Contact</Link>
               <Link to="/terms" className="hover:text-neon-cyan">Terms</Link>
+              <AdminAccessLink className="font-semibold text-neon-cyan/90 hover:text-neon-cyan">
+                admin
+              </AdminAccessLink>
             </div>
           </div>
         </footer>
