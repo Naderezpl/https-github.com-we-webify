@@ -10,6 +10,7 @@ import {
 } from "@/store/pricing";
 import { useAuthStore } from "@/store/auth";
 import { useSiteContentStore, TERMS_TEMPLATE_BODY, type SampleSiteCard, type SocialLink } from "@/store/siteContent";
+import { createClient } from "@/utils/supabase/client";
 import {
   ArrowLeft,
   Eye,
@@ -32,6 +33,7 @@ import {
   ToggleRight,
   Loader2,
   AlertCircle,
+  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatOrderCode, useOrdersStore } from "@/store/orders";
@@ -408,6 +410,15 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState<AdminTab>("pricing");
   const [saved, setSaved] = useState<null | "ok" | "warn" | "saving">(null);
   const [dbSyncFailed, setDbSyncFailed] = useState(false);
+  const [diagnoseState, setDiagnoseState] = useState<null | "running" | { ok: true; table: string } | { ok: false; error: string }>(null);
+
+  const supabaseUrl =
+    import.meta.env.VITE_SUPABASE_URL ?? import.meta.env.PUBLIC_SUPABASE_URL;
+  const supabaseKey =
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
+    import.meta.env.VITE_SUPABASE_ANON_KEY ??
+    import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+  const envReady = Boolean(supabaseUrl && supabaseKey);
 
   useEffect(() => {
     if (!authenticated) navigate("/webify", { replace: true });
@@ -423,6 +434,30 @@ export default function AdminDashboard() {
       syncOrders,
     ]);
     return pricingOk && contentOk && ordersOk;
+  }
+
+  async function runDiagnostics() {
+    setDiagnoseState("running");
+    try {
+      if (!supabaseUrl || !supabaseKey) {
+        throw new Error("Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY in env (restart Vite after editing .env.local)");
+      }
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("site_settings")
+        .select("id, updated_at")
+        .eq("id", "main")
+        .maybeSingle();
+      if (error) throw new Error(`[${error.code}] ${error.message}`);
+      if (!data) throw new Error("site_settings row 'main' not found — re-run migration SQL");
+      setDiagnoseState({ ok: true, table: "site_settings" });
+      setDbSyncFailed(false);
+      setTimeout(() => setDiagnoseState(null), 4000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setDiagnoseState({ ok: false, error: msg });
+      console.error("DB diagnostics failed:", err);
+    }
   }
 
   async function handleSave() {
@@ -563,14 +598,77 @@ export default function AdminDashboard() {
 
         {dbSyncFailed && (
           <div className="border-b border-amber-400/20 bg-amber-400/5">
-            <div className="container flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="inline-flex items-center gap-2 text-xs font-semibold text-amber-300">
-                <AlertCircle className="h-3.5 w-3.5" />
-                Changes are saved on this device, but Supabase sync is failing (other users won't see updates yet).
-              </p>
-              <p className="text-xs text-amber-200/80">
-                Tip: apply <span className="font-mono">supabase/migrations/0001_site_content_and_orders.sql</span> in the SQL Editor, or set <span className="font-mono">VITE_SUPABASE_URL</span> + <span className="font-mono">VITE_SUPABASE_PUBLISHABLE_KEY</span> (or <span className="font-mono">VITE_SUPABASE_ANON_KEY</span>) in <span className="font-mono">.env.local</span>.
-              </p>
+            <div className="container flex flex-col gap-3 py-3 sm:gap-4 sm:py-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                  <p className="inline-flex items-center gap-2 text-xs font-semibold text-amber-300">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    Changes are saved on this device, but Supabase sync is failing (other users won't see updates yet).
+                  </p>
+                  <p className="text-xs text-amber-200/80">
+                    Tip: apply <span className="font-mono">supabase/migrations/0001_site_content_and_orders.sql</span> in the SQL Editor, or set <span className="font-mono">VITE_SUPABASE_URL</span> + <span className="font-mono">VITE_SUPABASE_PUBLISHABLE_KEY</span> (or <span className="font-mono">VITE_SUPABASE_ANON_KEY</span>) in <span className="font-mono">.env.local</span>.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={runDiagnostics}
+                  disabled={diagnoseState === "running"}
+                  className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1.5 text-xs font-bold text-amber-200 transition-all hover:border-amber-400/50 hover:bg-amber-400/20 disabled:opacity-70"
+                >
+                  {diagnoseState === "running" ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Activity className="h-3.5 w-3.5" />
+                  )}
+                  {diagnoseState === "running" ? "Running diagnostics…" : "Diagnose DB sync"}
+                </button>
+              </div>
+
+              <div className="grid gap-2 text-[11px] sm:grid-cols-3">
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                  <p className="mb-1 font-bold uppercase tracking-wider text-slate-400">VITE_SUPABASE_URL</p>
+                  {supabaseUrl ? (
+                    <p className="break-all font-mono text-emerald-300">✅ {supabaseUrl}</p>
+                  ) : (
+                    <p className="font-mono text-rose-300">❌ missing (edit .env.local)</p>
+                  )}
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                  <p className="mb-1 font-bold uppercase tracking-wider text-slate-400">Publishable / Anon key</p>
+                  {supabaseKey ? (
+                    <p className="break-all font-mono text-emerald-300">
+                      ✅ {supabaseKey.slice(0, 8)}…{supabaseKey.slice(-4)}
+                    </p>
+                  ) : (
+                    <p className="font-mono text-rose-300">❌ missing (edit .env.local)</p>
+                  )}
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                  <p className="mb-1 font-bold uppercase tracking-wider text-slate-400">Most common fix</p>
+                  <p className="text-amber-200/90">
+                    {envReady
+                      ? "Stop Vite dev server (Ctrl+C) then re-run:  npm run dev   (new .env.local only picked up on restart)"
+                      : "Paste your keys into .env.local (see .env.example) then restart Vite with:  npm run dev"}
+                  </p>
+                </div>
+              </div>
+
+              {diagnoseState && diagnoseState !== "running" && (
+                <div
+                  className={cn(
+                    "rounded-xl border p-3 text-xs font-semibold",
+                    diagnoseState.ok
+                      ? "border-emerald-400/30 bg-emerald-400/5 text-emerald-200"
+                      : "border-rose-400/30 bg-rose-400/5 text-rose-200",
+                  )}
+                >
+                  {diagnoseState.ok ? (
+                    <>✅ Diagnostics OK — connected to table <span className="font-mono">{diagnoseState.table}</span>. Click Save changes now.</>
+                  ) : (
+                    <>❌ DB error: <span className="break-all font-mono">{diagnoseState.error}</span></>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
