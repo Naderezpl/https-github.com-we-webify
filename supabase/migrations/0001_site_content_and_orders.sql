@@ -3,8 +3,52 @@ CREATE TABLE IF NOT EXISTS site_settings (
   pricing JSONB NOT NULL DEFAULT '{"tiers": []}'::jsonb,
   content JSONB NOT NULL DEFAULT '{}'::jsonb,
   next_order_seq INTEGER NOT NULL DEFAULT 1,
+  admin_access_code TEXT,
+  admin_access_expires_at TIMESTAMPTZ,
+  admin_whitelist_emails TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  use_whitelist_only BOOLEAN NOT NULL DEFAULT FALSE,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'site_settings' AND column_name = 'pricing') THEN
+    ALTER TABLE site_settings ADD COLUMN pricing JSONB NOT NULL DEFAULT '{"tiers": []}'::jsonb;
+  ELSE
+    ALTER TABLE site_settings ALTER COLUMN pricing SET DEFAULT '{"tiers": []}'::jsonb;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'site_settings' AND column_name = 'content') THEN
+    ALTER TABLE site_settings ADD COLUMN content JSONB NOT NULL DEFAULT '{}'::jsonb;
+  ELSE
+    ALTER TABLE site_settings ALTER COLUMN content SET DEFAULT '{}'::jsonb;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'site_settings' AND column_name = 'admin_access_code') THEN
+    ALTER TABLE site_settings ADD COLUMN admin_access_code TEXT;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'site_settings' AND column_name = 'admin_access_expires_at') THEN
+    ALTER TABLE site_settings ADD COLUMN admin_access_expires_at TIMESTAMPTZ;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'site_settings' AND column_name = 'admin_whitelist_emails') THEN
+    ALTER TABLE site_settings ADD COLUMN admin_whitelist_emails TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'site_settings' AND column_name = 'use_whitelist_only') THEN
+    ALTER TABLE site_settings ADD COLUMN use_whitelist_only BOOLEAN NOT NULL DEFAULT FALSE;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS site_orders (
   id TEXT PRIMARY KEY,
