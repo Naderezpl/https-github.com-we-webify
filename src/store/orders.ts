@@ -24,6 +24,7 @@ export type CustomerOrder = {
   notes: string;
   bundleFeatures: string[];
   createdAt: string;
+  completed: boolean;
 };
 
 type CreateOrderInput = {
@@ -41,6 +42,8 @@ type OrdersState = {
   nextSequenceNumber: number;
   createOrder: (input: CreateOrderInput) => CustomerOrder;
   clearOrders: () => void;
+  setCompleted: (orderId: string, completed: boolean) => void;
+  deleteOrder: (orderId: string) => void;
   syncToDatabase: () => Promise<boolean>;
   syncFromDatabase: () => Promise<boolean>;
 };
@@ -67,6 +70,7 @@ export const useOrdersStore = create<OrdersState>()(
             notes: input.notes.trim(),
             bundleFeatures: input.bundleFeatures,
             createdAt: new Date().toISOString(),
+            completed: false,
           };
 
           (async () => {
@@ -86,6 +90,7 @@ export const useOrdersStore = create<OrdersState>()(
                 notes: createdOrder.notes,
                 bundle_features: createdOrder.bundleFeatures,
                 created_at: createdOrder.createdAt,
+                completed: createdOrder.completed,
               });
               await supabase
                 .from("site_settings")
@@ -125,6 +130,41 @@ export const useOrdersStore = create<OrdersState>()(
           }
         })();
       },
+      setCompleted: (orderId, completed) => {
+        set((state) => ({
+          orders: state.orders.map((o) =>
+            o.id === orderId ? { ...o, completed } : o
+          ),
+        }));
+        (async () => {
+          try {
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+            if (!supabaseUrl) return;
+            const supabase = createClient();
+            await supabase
+              .from("site_orders")
+              .update({ completed })
+              .eq("id", orderId);
+          } catch (err) {
+            console.error("setCompleted DB update failed:", err);
+          }
+        })();
+      },
+      deleteOrder: (orderId) => {
+        set((state) => ({
+          orders: state.orders.filter((o) => o.id !== orderId),
+        }));
+        (async () => {
+          try {
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+            if (!supabaseUrl) return;
+            const supabase = createClient();
+            await supabase.from("site_orders").delete().eq("id", orderId);
+          } catch (err) {
+            console.error("deleteOrder DB delete failed:", err);
+          }
+        })();
+      },
       syncToDatabase: async () => {
         try {
           const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -145,6 +185,7 @@ export const useOrdersStore = create<OrdersState>()(
               notes: o.notes,
               bundle_features: o.bundleFeatures,
               created_at: o.createdAt,
+              completed: o.completed,
             }));
             const { error } = await supabase
               .from("site_orders")
@@ -208,6 +249,7 @@ export const useOrdersStore = create<OrdersState>()(
             notes: row.notes ?? "",
             bundleFeatures: Array.isArray(row.bundle_features) ? row.bundle_features : [],
             createdAt: row.created_at,
+            completed: !!row.completed,
           }));
 
           const nextSeq =

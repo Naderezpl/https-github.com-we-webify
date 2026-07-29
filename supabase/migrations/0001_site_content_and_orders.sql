@@ -17,8 +17,15 @@ CREATE TABLE IF NOT EXISTS site_orders (
   site_name TEXT NOT NULL,
   notes TEXT NOT NULL DEFAULT '',
   bundle_features TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed BOOLEAN NOT NULL DEFAULT FALSE
 );
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'site_orders' AND column_name = 'completed') THEN
+    ALTER TABLE site_orders ADD COLUMN completed BOOLEAN NOT NULL DEFAULT FALSE;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_site_orders_created_at ON site_orders (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_site_orders_order_code ON site_orders (order_code);

@@ -36,6 +36,9 @@ import {
   Activity,
   Undo2,
   AlertTriangle,
+  CheckCircle2,
+  Circle,
+  XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOrdersStore, formatOrderCode } from "@/store/orders";
@@ -473,6 +476,8 @@ export default function AdminDashboard() {
 
   const orders = useOrdersStore((s) => s.orders);
   const nextSequenceNumber = useOrdersStore((s) => s.nextSequenceNumber);
+  const setOrderCompleted = useOrdersStore((s) => s.setCompleted);
+  const deleteOrder = useOrdersStore((s) => s.deleteOrder);
 
   const [tab, setTab] = useState<AdminTab>("pricing");
   const [saved, setSaved] = useState<null | "ok" | "warn" | "saving">(null);
@@ -1390,7 +1395,8 @@ export default function AdminDashboard() {
                     Customer bundle orders
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm text-slate-400">
-                    Read only — each order stores its data as submitted. To edit/delete, use the Supabase table directly.
+                    Mark a project as <span className="font-semibold text-white">Completed</span> to collapse its card and hide details like notes & features.
+                    Delete an order to remove it permanently — there's no recycle bin.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3 text-xs text-slate-300">
@@ -1398,6 +1404,12 @@ export default function AdminDashboard() {
                     <p className="text-slate-500">Total orders</p>
                     <p className="mt-1 font-display text-xl font-black text-white">
                       {orders.length}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                    <p className="text-slate-500">Completed</p>
+                    <p className="mt-1 font-display text-xl font-black text-emerald-300">
+                      {orders.filter((o) => o.completed).length}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
@@ -1410,89 +1422,184 @@ export default function AdminDashboard() {
               </div>
 
               {orders.length > 0 ? (
-                <div className="grid gap-5">
-                  {orders.map((order) => (
-                    <article
-                      key={order.id}
-                      className="rounded-3xl border border-white/10 bg-white/[0.03] p-5"
-                    >
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neon-cyan">
-                            {order.orderCode}
-                          </p>
-                          <h3 className="mt-2 font-display text-xl font-black tracking-tight text-white">
-                            {order.siteName}
-                          </h3>
-                          <p className="mt-1 text-sm text-slate-400">
-                            {order.bundleName} bundle
-                          </p>
+                <div className="grid gap-4">
+                  {orders.map((order) =>
+                    order.completed ? (
+                      <article
+                        key={order.id}
+                        className="flex flex-col gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.04] p-3 sm:flex-row sm:items-center sm:gap-4 sm:p-4"
+                      >
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <span className="inline-flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-emerald-400/15 text-emerald-300 ring-1 ring-emerald-400/40">
+                            <CheckCircle2 className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <p className="font-mono text-[11px] font-bold uppercase tracking-[0.15em] text-emerald-300">
+                                {order.orderCode}
+                              </p>
+                              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-200">
+                                <CheckCircle2 className="h-2.5 w-2.5" />
+                                Completed
+                              </span>
+                            </div>
+                            <h3 className="mt-1 truncate font-display text-sm font-bold text-white sm:text-base">
+                              {order.siteName} · <span className="font-semibold text-slate-300">{order.bundleName}</span>
+                            </h3>
+                          </div>
                         </div>
-                        <p className="text-xs text-slate-500">
-                          {new Date(order.createdAt).toLocaleString()}
+                        <p className="pl-12 text-[11px] text-slate-500 sm:pl-0 sm:text-xs">
+                          {new Date(order.createdAt).toLocaleDateString()}
                         </p>
-                      </div>
+                        <div className="flex flex-wrap items-center gap-2 sm:pl-2">
+                          <button
+                            type="button"
+                            onClick={() => setOrderCompleted(order.id, false)}
+                            title="Mark as not completed — restore details"
+                            className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-slate-300 transition-all hover:border-neon-cyan/40 hover:text-neon-cyan"
+                          >
+                            <Circle className="h-3.5 w-3.5" /> Re-open
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const ok = window.confirm(
+                                `Delete order ${order.orderCode} (${order.siteName}) permanently?\n\nThis cannot be undone — there is no recycle bin.`
+                              );
+                              if (!ok) return;
+                              deleteOrder(order.id);
+                            }}
+                            title="Permanently delete this order (no recycle bin)"
+                            className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/25 bg-rose-500/10 px-3 py-1.5 text-[11px] font-semibold text-rose-300 transition-all hover:border-rose-500/60 hover:text-rose-200"
+                          >
+                            <XCircle className="h-3.5 w-3.5" /> Delete
+                          </button>
+                        </div>
+                      </article>
+                    ) : (
+                      <article
+                        key={order.id}
+                        className="rounded-3xl border border-white/10 bg-white/[0.03] p-5"
+                      >
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="flex flex-1 items-start gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setOrderCompleted(order.id, true)}
+                              title="Mark project as completed (collapses card, hides details)"
+                              className="group/complete inline-flex h-10 w-10 flex-none items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 transition-all hover:border-emerald-400/50 hover:bg-emerald-400/10 hover:text-emerald-300"
+                            >
+                              <Circle className="h-4 w-4 transition-all group-hover/complete:hidden" />
+                              <CheckCircle2 className="hidden h-4 w-4 transition-all group-hover/complete:block" />
+                            </button>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-neon-cyan">
+                                  {order.orderCode}
+                                </p>
+                                <span className="inline-flex items-center gap-1 rounded-full border border-neon-cyan/25 bg-neon-cyan/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-neon-cyan/90">
+                                  Open
+                                </span>
+                              </div>
+                              <h3 className="mt-2 font-display text-xl font-black tracking-tight text-white">
+                                {order.siteName}
+                              </h3>
+                              <p className="mt-1 text-sm text-slate-400">
+                                {order.bundleName} bundle
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <p className="text-xs text-slate-500">
+                              {new Date(order.createdAt).toLocaleString()}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setOrderCompleted(order.id, true)}
+                                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-300 transition-all hover:border-emerald-400/60 hover:text-emerald-200"
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Mark completed
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const ok = window.confirm(
+                                    `Delete order ${order.orderCode} (${order.siteName}) permanently?\n\nThis cannot be undone — there is no recycle bin.`
+                                  );
+                                  if (!ok) return;
+                                  deleteOrder(order.id);
+                                }}
+                                title="Permanently delete this order (no recycle bin)"
+                                className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/25 bg-rose-500/10 px-3 py-1.5 text-[11px] font-semibold text-rose-300 transition-all hover:border-rose-500/60 hover:text-rose-200"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" /> Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
 
-                      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                            Customer name
-                          </p>
-                          <p className="mt-2 text-sm font-semibold text-white">
-                            {order.customerName}
-                          </p>
+                        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                              Customer name
+                            </p>
+                            <p className="mt-2 text-sm font-semibold text-white">
+                              {order.customerName}
+                            </p>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                              Customer number
+                            </p>
+                            <p className="mt-2 text-sm font-semibold text-white">
+                              {order.customerPhone}
+                            </p>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                              Site name
+                            </p>
+                            <p className="mt-2 text-sm font-semibold text-white">
+                              {order.siteName}
+                            </p>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                              Bundle code
+                            </p>
+                            <p className="mt-2 text-sm font-semibold text-white">
+                              {order.orderCode}
+                            </p>
+                          </div>
                         </div>
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                            Customer number
-                          </p>
-                          <p className="mt-2 text-sm font-semibold text-white">
-                            {order.customerPhone}
-                          </p>
-                        </div>
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                            Site name
-                          </p>
-                          <p className="mt-2 text-sm font-semibold text-white">
-                            {order.siteName}
-                          </p>
-                        </div>
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                            Bundle code
-                          </p>
-                          <p className="mt-2 text-sm font-semibold text-white">
-                            {order.orderCode}
-                          </p>
-                        </div>
-                      </div>
 
-                      <div className="mt-5 grid gap-4 lg:grid-cols-[1.4fr,1fr]">
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                            Notes
-                          </p>
-                          <p className="mt-2 text-sm leading-6 text-slate-300">
-                            {order.notes || "No notes added."}
-                          </p>
+                        <div className="mt-5 grid gap-4 lg:grid-cols-[1.4fr,1fr]">
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                              Notes
+                            </p>
+                            <p className="mt-2 text-sm leading-6 text-slate-300">
+                              {order.notes || "No notes added."}
+                            </p>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                              Bundle features
+                            </p>
+                            <ul className="mt-2 space-y-2 text-sm text-slate-300">
+                              {order.bundleFeatures.map((feature, index) => (
+                                <li key={`${order.id}-${index}`} className="flex gap-2">
+                                  <span className="text-neon-cyan">•</span>
+                                  <span>{feature}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
                         </div>
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                            Bundle features
-                          </p>
-                          <ul className="mt-2 space-y-2 text-sm text-slate-300">
-                            {order.bundleFeatures.map((feature, index) => (
-                              <li key={`${order.id}-${index}`} className="flex gap-2">
-                                <span className="text-neon-cyan">•</span>
-                                <span>{feature}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
+                      </article>
+                    )
+                  )}
                 </div>
               ) : (
                 <div className="glass-pill rounded-3xl p-10 text-center">
