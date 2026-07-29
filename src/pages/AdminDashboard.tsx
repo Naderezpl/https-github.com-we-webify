@@ -569,7 +569,7 @@ export default function AdminDashboard() {
                 Changes are saved on this device, but Supabase sync is failing (other users won't see updates yet).
               </p>
               <p className="text-xs text-amber-200/80">
-                Tip: apply <span className="font-mono">supabase/migrations/0001_site_content_and_orders.sql</span> in the SQL Editor, or set <span className="font-mono">VITE_SUPABASE_URL</span> + <span className="font-mono">VITE_SUPABASE_ANON_KEY</span>.
+                Tip: apply <span className="font-mono">supabase/migrations/0001_site_content_and_orders.sql</span> in the SQL Editor, or set <span className="font-mono">VITE_SUPABASE_URL</span> + <span className="font-mono">VITE_SUPABASE_PUBLISHABLE_KEY</span> (or <span className="font-mono">VITE_SUPABASE_ANON_KEY</span>) in <span className="font-mono">.env.local</span>.
               </p>
             </div>
           </div>
