@@ -143,42 +143,11 @@ const defaults: SiteContent = {
   },
   sampleProjects: {
     eyebrow: "Portfolio",
-    title: "Sites we've",
-    titleHighlight: "shipped for clients",
+    title: "Showcase",
+    titleHighlight: "Sample Projects",
     subtitle:
-      "A selection of websites we've built. Click on any card to view the live site.",
-    cards: [
-      {
-        id: uid(),
-        title: "Luxe Atelier Boutique",
-        description:
-          "Minimal e-commerce for a luxury fashion boutique — Stripe checkout, sizing, and lookbook.",
-        imageUrl: sampleImage("e commerce fashion boutique hero"),
-        siteUrl: "https://example.com/",
-        showViewButton: true,
-        viewButtonLabel: "Click to view site",
-      },
-      {
-        id: uid(),
-        title: "Orbit SaaS Dashboard",
-        description:
-          "Marketing website + gated dashboard experience for an analytics SaaS startup.",
-        imageUrl: sampleImage("saas marketing website dashboard ui"),
-        siteUrl: "https://example.com/",
-        showViewButton: true,
-        viewButtonLabel: "Click to view site",
-      },
-      {
-        id: uid(),
-        title: "Northstar Architecture",
-        description:
-          "Portfolio site for an architecture studio with cinematic project galleries.",
-        imageUrl: sampleImage("architecture portfolio website"),
-        siteUrl: "https://example.com/",
-        showViewButton: true,
-        viewButtonLabel: "Click to view site",
-      },
-    ],
+      "Websites we've built for clients. Every card here is live — click any card to open the finished site.",
+    cards: [],
   },
   terms: {
     eyebrow: "Legal",
@@ -362,13 +331,13 @@ export const useSiteContentStore = create<State>()(
                   ...s.content.sampleProjects.cards,
                   {
                     id: uid(),
-                    title: `Sample Project ${n}`,
+                    title: `Project ${n}`,
                     description:
                       "Describe what this website is for, who the client is, and what was delivered.",
-                    imageUrl: sampleImage(`sample project ${n}`),
-                    siteUrl: "https://example.com/",
-                    showViewButton: true,
-                    viewButtonLabel: "Click to view site",
+                    imageUrl: "",
+                    siteUrl: "",
+                    showViewButton: false,
+                    viewButtonLabel: "View site",
                   },
                 ],
               },
@@ -426,17 +395,29 @@ export const useSiteContentStore = create<State>()(
             console.error("SiteContent syncFromDatabase error:", error);
             return false;
           }
-          if (!data || !data.content || !isPartialSiteContent(data.content)) {
-            return false;
+          if (!data) {
+            const seedOk = await get().syncToDatabase();
+            return seedOk;
           }
-          const dbContent = data.content as Partial<SiteContent>;
-          const merged: SiteContent = {
-            about: { ...defaults.about, ...(dbContent.about ?? {}) },
-            contact: { ...defaults.contact, ...(dbContent.contact ?? {}) },
-            sampleProjects: { ...defaults.sampleProjects, ...(dbContent.sampleProjects ?? {}) },
-            terms: { ...defaults.terms, ...(dbContent.terms ?? {}) },
-          };
-          set({ content: merged });
+          const dbContent =
+            data.content && isPartialSiteContent(data.content)
+              ? (data.content as Partial<SiteContent>)
+              : null;
+          if (dbContent) {
+            const merged: SiteContent = {
+              about: { ...defaults.about, ...(dbContent.about ?? {}) },
+              contact: { ...defaults.contact, ...(dbContent.contact ?? {}) },
+              sampleProjects: {
+                ...defaults.sampleProjects,
+                ...(dbContent.sampleProjects ?? {}),
+                cards: Array.isArray(dbContent.sampleProjects?.cards)
+                  ? dbContent.sampleProjects!.cards
+                  : [],
+              },
+              terms: { ...defaults.terms, ...(dbContent.terms ?? {}) },
+            };
+            set({ content: merged });
+          }
           return true;
         } catch (err) {
           console.error("SiteContent syncFromDatabase failed:", err);
@@ -445,32 +426,14 @@ export const useSiteContentStore = create<State>()(
       },
     }),
     {
-      name: "webify.sitecontent.v5",
-      version: 5,
-      migrate: (persistedState: unknown, version: number) => {
-        if (version < 4) {
+      name: "webify.sitecontent.v6",
+      version: 6,
+      migrate: (_persistedState: unknown, version: number) => {
+        // All versions before 6: discard legacy localStorage cache so DB is always the source of truth.
+        if (version < 6) {
           return { content: defaults };
         }
-        if (version < 5) {
-          const state = persistedState as {
-            content?: Partial<SiteContent> & {
-              sampleSites?: SiteContent["sampleProjects"];
-            };
-          };
-          const content = state.content ?? {};
-          return {
-            content: {
-              ...defaults,
-              ...content,
-              sampleProjects:
-                content.sampleProjects ??
-                content.sampleSites ??
-                defaults.sampleProjects,
-              terms: content.terms ?? defaults.terms,
-            },
-          };
-        }
-        return persistedState as State;
+        return { content: defaults };
       },
     }
   )

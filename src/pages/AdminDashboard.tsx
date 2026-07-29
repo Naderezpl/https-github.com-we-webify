@@ -11,6 +11,7 @@ import {
 import { useAuthStore } from "@/store/auth";
 import { TERMS_TEMPLATE_BODY, type SampleSiteCard, type SiteContent, type SocialLink } from "@/store/siteContent";
 import { createClient } from "@/utils/supabase/client";
+import { useBootSync } from "@/App";
 import {
   ArrowLeft,
   Eye,
@@ -479,6 +480,8 @@ export default function AdminDashboard() {
   const setOrderCompleted = useOrdersStore((s) => s.setCompleted);
   const deleteOrder = useOrdersStore((s) => s.deleteOrder);
 
+  const bootSync = useBootSync();
+
   const [tab, setTab] = useState<AdminTab>("pricing");
   const [saved, setSaved] = useState<null | "ok" | "warn" | "saving">(null);
   const [dbSyncFailed, setDbSyncFailed] = useState(false);
@@ -489,6 +492,22 @@ export default function AdminDashboard() {
 
   const [draftTiers, setDraftTiers] = useState<PricingTier[]>(() => cloneTiers(initialTiersRef.current));
   const [draftContent, setDraftContent] = useState<SiteContent>(() => cloneContent(initialContentRef.current));
+  const initializedFromDbRef = useRef<boolean>(false);
+
+  // Once boot sync finishes AND the DB row was loaded into the stores, reset the admin
+  // draft + initial refs to the DB state. This guarantees the admin never edits on top
+  // of the old hardcoded defaults cached in localStorage / initial state.
+  useEffect(() => {
+    if (bootSync.status === "booting") return;
+    if (initializedFromDbRef.current) return;
+    initializedFromDbRef.current = true;
+    const freshTiers = cloneTiers(usePricingStore.getState().tiers);
+    const freshContent = cloneContent(useSiteContentStore.getState().content);
+    initialTiersRef.current = freshTiers;
+    initialContentRef.current = freshContent;
+    setDraftTiers(freshTiers);
+    setDraftContent(freshContent);
+  }, [bootSync.status, bootSync.syncedAt]);
 
   const isDirty = useMemo(
     () =>

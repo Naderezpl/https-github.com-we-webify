@@ -224,6 +224,11 @@ export const useOrdersStore = create<OrdersState>()(
             .select("*")
             .order("created_at", { ascending: false });
           if (ordersError) {
+            // Table may not exist yet (fresh project, migration not run yet) — treat as empty, not fatal.
+            if (ordersError.code === "42P01" || ordersError.code === "PGRST204") {
+              // Keep current state (fallback to persist cache)
+              return false;
+            }
             console.error("Orders syncFromDatabase orders error:", ordersError);
             return false;
           }
@@ -259,6 +264,20 @@ export const useOrdersStore = create<OrdersState>()(
               ? Math.max(...mappedOrders.map((o) => o.sequenceNumber)) + 1
               : 1;
 
+          // Seed the setting row if it's missing (so next boot has a deterministic sequence source of truth)
+          if (!settingData || !(settingData.next_order_seq > 0)) {
+            try {
+              await supabase
+                .from("site_settings")
+                .upsert(
+                  { id: "main", next_order_seq: nextSeq, updated_at: new Date().toISOString() },
+                  { onConflict: "id" }
+                );
+            } catch (err) {
+              console.error("Orders syncFromDatabase seed setting failed:", err);
+            }
+          }
+
           set({
             orders: mappedOrders,
             nextSequenceNumber: nextSeq,
@@ -271,8 +290,15 @@ export const useOrdersStore = create<OrdersState>()(
       },
     }),
     {
-      name: "webify.orders.v1",
-      version: 1,
+      name: "webify.orders.v2",
+      version: 2,
+      migrate: (_persistedState: unknown, version: number) => {
+        if (version < 2) {
+          // Discard previous localStorage cache. DB is the source of truth.
+          return { orders: [], nextSequenceNumber: 1 };
+        }
+        return { orders: [], nextSequenceNumber: 1 };
+      },
     }
   )
 );

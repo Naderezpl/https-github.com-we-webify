@@ -281,10 +281,22 @@ export const usePricingStore = create<PricingState>()(
             console.error("Pricing syncFromDatabase error:", error);
             return false;
           }
-          if (!data || !data.pricing || !data.pricing.tiers || !Array.isArray(data.pricing.tiers) || data.pricing.tiers.length === 0) {
-            return false;
+          if (!data) {
+            // No row yet - seed the DB with defaults so next boot loads from DB
+            const seedOk = await get().syncToDatabase();
+            return seedOk;
           }
-          set({ tiers: data.pricing.tiers as PricingTier[] });
+          const pricing =
+            data.pricing && typeof data.pricing === "object"
+              ? (data.pricing as Record<string, unknown>)
+              : null;
+          const hasTiersKey = !!pricing && Array.isArray((pricing as Record<string, unknown>).tiers);
+          if (hasTiersKey) {
+            const parsedTiers = (pricing as Record<string, unknown>).tiers as PricingTier[];
+            // Accept even empty array = user intentionally cleared all. Only fall back if not array.
+            set({ tiers: parsedTiers });
+          }
+          // Row exists but pricing column empty - keep current (default/cached) state
           return true;
         } catch (err) {
           console.error("Pricing syncFromDatabase failed:", err);
@@ -293,10 +305,11 @@ export const usePricingStore = create<PricingState>()(
       },
     }),
     {
-      name: "webify.pricing.v3",
-      version: 3,
+      name: "webify.pricing.v4",
+      version: 4,
       migrate: (persistedState: unknown, version: number) => {
-        if (version < 3) {
+        // Old versions (< 4): discard previous localStorage cache so DB is always source of truth on first boot.
+        if (version < 4) {
           return { tiers: defaultTiers };
         }
         return persistedState as { tiers: PricingTier[] };

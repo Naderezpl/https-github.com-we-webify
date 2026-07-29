@@ -5,7 +5,7 @@ import Hero from "@/components/Hero";
 import { Icon } from "@/components/Icon";
 import { usePricingStore, type TierAccent } from "@/store/pricing";
 import { useSiteContentStore } from "@/store/siteContent";
-import { ArrowRight, ArrowUpRight } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Layers } from "lucide-react";
 import { Link } from "react-router-dom";
 
 function accentClasses(accent: TierAccent) {
@@ -155,69 +155,94 @@ export default function Home() {
             </div>
 
             <div className="mt-14 flex flex-wrap items-start justify-center gap-6 md:gap-7">
-              {sample.cards.slice(0, 3).map((card, i) => (
-                <article
-                  key={card.id}
-                  className="group relative flex w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] ring-1 backdrop-blur-xl transition-all duration-500 hover:-translate-y-1.5 md:max-w-[420px] md:flex-1 md:min-w-[320px]"
-                  style={{ animationDelay: `${0.2 + i * 0.08}s` }}
-                >
-                  <div className="relative aspect-[4/3] overflow-hidden bg-white/[0.02]">
-                    {card.imageUrl ? (
-                      <img
-                        src={card.imageUrl}
-                        alt={card.title}
-                        className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="h-full w-full bg-gradient-to-br from-ink-800 to-ink-900" />
-                    )}
-
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-ink-950/70 to-transparent" />
-
-                    {card.showViewButton && card.siteUrl && (
-                      <a
-                        href={card.siteUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-ink-950/85 px-3.5 py-1.5 text-[11px] font-bold text-white ring-1 ring-white/15 backdrop-blur-md transition-all hover:bg-neon-cyan hover:text-ink-950 hover:ring-neon-cyan/60 hover:shadow-neon sm:text-xs"
-                      >
-                        {card.viewButtonLabel || "Click to view site"}
-                        <ArrowUpRight className="h-3.5 w-3.5" />
-                      </a>
-                    )}
-
-                    {card.siteUrl && (
-                      <a
-                        href={card.siteUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="absolute inset-0 z-0"
-                        aria-label={`Open ${card.title}`}
-                      />
-                    )}
+              {sample.cards.length === 0 ? (
+                <div className="mx-auto flex w-full max-w-3xl flex-col items-center justify-center gap-4 rounded-3xl border border-dashed border-white/15 bg-white/[0.03] px-6 py-14 text-center backdrop-blur-xl">
+                  <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-slate-400">
+                    <Layers className="h-7 w-7" />
                   </div>
+                  <h3 className="font-display text-2xl font-bold text-white">
+                    Portfolio is live — add your first project
+                  </h3>
+                  <p className="max-w-xl text-sm leading-6 text-slate-400">
+                    Nothing is hardcoded. Every card you see here is uploaded by you from the
+                    admin panel with a real photo, a description, and a link to the finished site.
+                  </p>
+                </div>
+              ) : (
+                sample.cards.slice(0, 3).map((card, i) => (
+                  <article
+                    key={card.id}
+                    className="group relative flex w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] ring-1 backdrop-blur-xl transition-all duration-500 hover:-translate-y-1.5 md:max-w-[420px] md:flex-1 md:min-w-[320px]"
+                    style={{ animationDelay: `${0.2 + i * 0.08}s` }}
+                  >
+                    <div className="relative aspect-[4/3] overflow-hidden bg-white/[0.02]">
+                      {card.imageUrl ? (
+                        <img
+                          src={card.imageUrl}
+                          alt={card.title}
+                          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="h-full w-full bg-gradient-to-br from-ink-800 to-ink-900" />
+                      )}
 
-                  <div className="flex flex-1 flex-col gap-3 p-6 sm:p-7">
-                    <h3 className="mt-1 font-display text-xl font-extrabold tracking-tight text-white">
-                      {card.title}
-                    </h3>
-                    <p className="text-sm leading-6 text-slate-300/90">
-                      {card.description}
-                    </p>
-                  </div>
-                </article>
-              ))}
+                      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-ink-950/70 to-transparent" />
+
+                      {card.showViewButton && card.siteUrl && (
+                        <a
+                          href={card.siteUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-ink-950/85 px-3.5 py-1.5 text-[11px] font-bold text-white ring-1 ring-white/15 backdrop-blur-md transition-all hover:bg-neon-cyan hover:text-ink-950 hover:ring-neon-cyan/60 hover:shadow-neon sm:text-xs"
+                        >
+                          {card.viewButtonLabel || "Click to view site"}
+                          <ArrowUpRight className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+
+                      {card.siteUrl && (
+                        <a
+                          href={card.siteUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="absolute inset-0 z-0"
+                          aria-label={`Open ${card.title}`}
+                        />
+                      )}
+                    </div>
+
+                    <div className="flex flex-1 flex-col gap-3 p-6 sm:p-7">
+                      <h3 className="mt-1 font-display text-xl font-extrabold tracking-tight text-white">
+                        {card.title}
+                      </h3>
+                      <p className="text-sm leading-6 text-slate-300/90">
+                        {card.description}
+                      </p>
+                    </div>
+                  </article>
+                ))
+              )}
             </div>
 
             <div className="mt-12 text-center">
-              <Link
-                to="/sample-projects"
-                className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-ink-950 transition-all hover:bg-neon-cyan hover:shadow-neon"
-              >
-                View Sample Projects
-                <ArrowRight className="h-4 w-4" strokeWidth={2.8} />
-              </Link>
+              {sample.cards.length > 0 ? (
+                <Link
+                  to="/sample-projects"
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-ink-950 transition-all hover:bg-neon-cyan hover:shadow-neon"
+                >
+                  View Sample Projects
+                  <ArrowRight className="h-4 w-4" strokeWidth={2.8} />
+                </Link>
+              ) : (
+                <Link
+                  to="/webify"
+                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-neon-cyan to-violet-500 px-6 py-3 text-sm font-bold text-ink-950 transition-all hover:shadow-neon"
+                >
+                  Open Admin & Add Your First Project
+                  <ArrowRight className="h-4 w-4" strokeWidth={2.8} />
+                </Link>
+              )}
             </div>
           </section>
         </main>
