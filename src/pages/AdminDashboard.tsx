@@ -685,7 +685,7 @@ export default function AdminDashboard() {
   const activeTab = TABS.find((t) => t.id === tab)!;
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-ink-950 text-white">
+    <div className="relative min-h-screen overflow-x-hidden bg-ink-950 text-white">
       <BackgroundAtmosphere />
       <div className="relative z-10 flex min-h-screen flex-col">
         <header className="sticky top-0 z-30 border-b border-white/5 bg-ink-950/70 backdrop-blur-xl">

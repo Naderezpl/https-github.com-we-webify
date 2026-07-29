@@ -132,7 +132,7 @@ export default function Pricing() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-ink-950 text-white">
+    <div className="relative min-h-screen overflow-x-hidden bg-ink-950 text-white">
       <BackgroundAtmosphere />
       <div className="relative z-10 flex min-h-screen flex-col">
         <Navbar />
@@ -399,8 +399,9 @@ export default function Pricing() {
       </div>
 
       {selectedTier && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/85 px-4 py-8 backdrop-blur-md">
-          <div className="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-[#070b14]/95 p-6 shadow-[0_25px_120px_rgba(0,0,0,0.65)] sm:p-8">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-ink-950/85 backdrop-blur-md">
+          <div className="flex min-h-full items-center justify-center px-4 py-6 sm:py-8">
+            <div className="my-auto w-full max-w-2xl rounded-[2rem] border border-white/10 bg-[#070b14]/95 p-5 shadow-[0_25px_120px_rgba(0,0,0,0.65)] sm:p-8">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neon-cyan">
@@ -520,6 +521,7 @@ export default function Pricing() {
                 </button>
               </div>
             </form>
+          </div>
           </div>
         </div>
       )}
