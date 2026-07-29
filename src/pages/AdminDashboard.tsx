@@ -470,9 +470,6 @@ export default function AdminDashboard() {
 
   const storeContent = useSiteContentStore((s) => s.content);
   const resetContentDefaults = useSiteContentStore((s) => s.resetDefaults);
-  const contentSetContent = useSiteContentStore((s) =>
-    (c: SiteContent) => useSiteContentStore.setState({ content: c })
-  );
 
   const orders = useOrdersStore((s) => s.orders);
   const nextSequenceNumber = useOrdersStore((s) => s.nextSequenceNumber);
@@ -584,7 +581,7 @@ export default function AdminDashboard() {
       return;
     }
     pricingSetTiers(cloneTiers(draftTiers));
-    contentSetContent(cloneContent(draftContent));
+    useSiteContentStore.setState({ content: cloneContent(draftContent) });
     initialTiersRef.current = cloneTiers(draftTiers);
     initialContentRef.current = cloneContent(draftContent);
 
