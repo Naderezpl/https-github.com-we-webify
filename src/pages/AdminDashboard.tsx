@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import BackgroundAtmosphere from "@/components/BackgroundAtmosphere";
 import { Icon, AVAILABLE_ICON_NAMES } from "@/components/Icon";
 import { SocialIcon, SOCIAL_LABELS } from "@/components/Social";
 import {
-  usePricingStore,
   type PricingTier,
+  type PricingFeature,
   type TierAccent,
 } from "@/store/pricing";
 import { useAuthStore } from "@/store/auth";
-import { useSiteContentStore, TERMS_TEMPLATE_BODY, type SampleSiteCard, type SocialLink } from "@/store/siteContent";
+import { TERMS_TEMPLATE_BODY, type SampleSiteCard, type SiteContent, type SocialLink } from "@/store/siteContent";
 import { createClient } from "@/utils/supabase/client";
 import {
   ArrowLeft,
@@ -34,9 +34,13 @@ import {
   Loader2,
   AlertCircle,
   Activity,
+  Undo2,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatOrderCode, useOrdersStore } from "@/store/orders";
+import { useOrdersStore, formatOrderCode } from "@/store/orders";
+import { usePricingStore } from "@/store/pricing";
+import { useSiteContentStore } from "@/store/siteContent";
 
 const ACCENTS: TierAccent[] = ["cyan", "highlight", "purple"];
 
@@ -49,6 +53,81 @@ const TABS: { id: AdminTab; label: string; icon: React.ReactNode; href?: string 
   { id: "contact", label: "Contact", icon: <MessageSquare className="h-4 w-4" />, href: "/contact" },
   { id: "terms", label: "Terms", icon: <FileText className="h-4 w-4" />, href: "/terms" },
 ];
+
+const uid = () =>
+  (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2) + Date.now().toString(36));
+
+const cloneTiers = (tiers: PricingTier[]): PricingTier[] =>
+  tiers.map((t) => ({ ...t, features: t.features.map((f) => ({ ...f })) }));
+
+const cloneContent = (c: SiteContent): SiteContent => ({
+  about: { ...c.about, bullets: [...c.about.bullets] },
+  contact: {
+    ...c.contact,
+    socials: c.contact.socials.map((s) => ({ ...s })),
+    projectOptions: [...c.contact.projectOptions],
+  },
+  sampleProjects: {
+    ...c.sampleProjects,
+    cards: c.sampleProjects.cards.map((card) => ({ ...card })),
+  },
+  terms: { ...c.terms },
+});
+
+const isEqual = (a: unknown, b: unknown): boolean => {
+  if (a === b) return true;
+  if (typeof a !== typeof b) return false;
+  if (Array.isArray(a)) {
+    if (!Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((v, i) => isEqual(v, (b as unknown[])[i]));
+  }
+  if (a && typeof a === "object") {
+    if (!b || typeof b !== "object") return false;
+    const ak = Object.keys(a as Record<string, unknown>);
+    const bk = Object.keys(b as Record<string, unknown>);
+    if (ak.length !== bk.length) return false;
+    return ak.every((k) =>
+      isEqual(
+        (a as Record<string, unknown>)[k],
+        (b as Record<string, unknown>)[k]
+      )
+    );
+  }
+  return false;
+};
+
+const DEFAULT_FEATURE_TEXT = "Describe what is included in this tier.";
+const DEFAULT_FEATURE_ICON = "Check";
+const DEFAULT_FEATURE_ALT = "Click + to add more features here.";
+const DEFAULT_FEATURE_ALT_ICON = "Sparkles";
+
+function makeNewTier(existingIndex: number): PricingTier {
+  const accents: TierAccent[] = ["cyan", "highlight", "purple"];
+  const accent = accents[existingIndex % accents.length];
+  const base =
+    accent === "cyan"
+      ? { name: "Starter", iconName: "Rocket", price: "from $490", period: "per project", cta: "Choose plan" }
+      : accent === "highlight"
+      ? { name: "Premium", iconName: "Layers", price: "from $2,490", period: "per project", cta: "Choose plan" }
+      : { name: "Enterprise", iconName: "Building2", price: "Custom", period: "custom quote", cta: "Talk to sales" };
+  return {
+    id: uid(),
+    name: `${base.name} ${existingIndex + 1}`.replace(/ 1$/, ""),
+    tagline: "Add a short tagline explaining who this bundle is for.",
+    price: base.price,
+    period: base.period,
+    accent,
+    iconName: base.iconName,
+    popular: existingIndex === 1 ? true : false,
+    cta: base.cta,
+    features: [
+      { id: uid(), text: DEFAULT_FEATURE_TEXT, iconName: DEFAULT_FEATURE_ICON },
+      { id: uid(), text: DEFAULT_FEATURE_ALT, iconName: DEFAULT_FEATURE_ALT_ICON },
+    ],
+  };
+}
 
 function IconPicker({
   value,
@@ -157,22 +236,34 @@ const inputCls =
 function TierEditor({
   tier,
   canRemove,
+  onChange,
   onRemove,
 }: {
   tier: PricingTier;
   canRemove: boolean;
+  onChange: (next: PricingTier) => void;
   onRemove?: () => void;
 }) {
-  const updateTier = usePricingStore((s) => s.updateTier);
-  const updateFeature = usePricingStore((s) => s.updateFeature);
-  const addFeature = usePricingStore((s) => s.addFeature);
-  const removeFeature = usePricingStore((s) => s.removeFeature);
-
   const accentLabel: Record<TierAccent, string> = {
     cyan: "Cyan · Entry",
     highlight: "Gradient · Featured",
     purple: "Purple · Premium",
   };
+
+  const patch = (p: Partial<PricingTier>) => onChange({ ...tier, ...p });
+  const setFeature = (featureId: string, fp: Partial<PricingFeature>) =>
+    patch({
+      features: tier.features.map((f) => (f.id === featureId ? { ...f, ...fp } : f)),
+    });
+  const addFeature = () =>
+    patch({
+      features: [
+        ...tier.features,
+        { id: uid(), text: "New feature description…", iconName: "Check" },
+      ],
+    });
+  const removeFeature = (featureId: string) =>
+    patch({ features: tier.features.filter((f) => f.id !== featureId) });
 
   return (
     <div className="glass-pill rounded-3xl p-6 sm:p-7">
@@ -203,22 +294,17 @@ function TierEditor({
             <input
               type="checkbox"
               checked={!!tier.popular}
-              onChange={(e) =>
-                updateTier(tier.id, { popular: e.target.checked })
-              }
+              onChange={(e) => patch({ popular: e.target.checked })}
               className="h-4 w-4 accent-neon-cyan"
             />
-            Mark as{" "}
-            <span className="font-semibold text-white">Most Popular</span>
+            Mark as <span className="font-semibold text-white">Most Popular</span>
           </label>
           <button
             type="button"
             onClick={onRemove}
             disabled={!canRemove}
             title={
-              canRemove
-                ? "Remove this bundle"
-                : "At least one bundle is required"
+              canRemove ? "Remove this bundle" : "At least one bundle is required"
             }
             className={cn(
               "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all",
@@ -238,15 +324,12 @@ function TierEditor({
             type="text"
             className={inputCls}
             value={tier.name}
-            onChange={(e) => updateTier(tier.id, { name: e.target.value })}
+            onChange={(e) => patch({ name: e.target.value })}
             placeholder="Basic"
           />
         </Field>
         <Field label="Tier icon">
-          <IconPicker
-            value={tier.iconName}
-            onChange={(n) => updateTier(tier.id, { iconName: n })}
-          />
+          <IconPicker value={tier.iconName} onChange={(n) => patch({ iconName: n })} />
         </Field>
 
         <div className="sm:col-span-2">
@@ -255,7 +338,7 @@ function TierEditor({
               type="text"
               className={inputCls}
               value={tier.tagline}
-              onChange={(e) => updateTier(tier.id, { tagline: e.target.value })}
+              onChange={(e) => patch({ tagline: e.target.value })}
               placeholder="Short pitch for this tier"
             />
           </Field>
@@ -266,7 +349,7 @@ function TierEditor({
             type="text"
             className={inputCls}
             value={tier.price}
-            onChange={(e) => updateTier(tier.id, { price: e.target.value })}
+            onChange={(e) => patch({ price: e.target.value })}
             placeholder="from $690"
           />
         </Field>
@@ -275,7 +358,7 @@ function TierEditor({
             type="text"
             className={inputCls}
             value={tier.period}
-            onChange={(e) => updateTier(tier.id, { period: e.target.value })}
+            onChange={(e) => patch({ period: e.target.value })}
             placeholder="per project"
           />
         </Field>
@@ -286,7 +369,7 @@ function TierEditor({
               <button
                 key={a}
                 type="button"
-                onClick={() => updateTier(tier.id, { accent: a })}
+                onClick={() => patch({ accent: a })}
                 className={cn(
                   "rounded-full border px-3.5 py-2 text-xs font-semibold transition-all",
                   tier.accent === a
@@ -309,7 +392,7 @@ function TierEditor({
             type="text"
             className={inputCls}
             value={tier.cta}
-            onChange={(e) => updateTier(tier.id, { cta: e.target.value })}
+            onChange={(e) => patch({ cta: e.target.value })}
             placeholder="Start Basic"
           />
         </Field>
@@ -322,12 +405,12 @@ function TierEditor({
               Feature checklist
             </h4>
             <p className="mt-1 text-xs text-slate-500">
-              Edit each row's description and the icon shown next to it.
+              Edit each row's description and the icon shown next to it. Changes are unsaved until you click Save.
             </p>
           </div>
           <button
             type="button"
-            onClick={() => addFeature(tier.id)}
+            onClick={addFeature}
             className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold text-white transition-all hover:border-neon-cyan/50 hover:text-neon-cyan"
           >
             <Plus className="h-3.5 w-3.5" /> Add feature
@@ -343,7 +426,7 @@ function TierEditor({
               <div className="sm:w-56">
                 <IconPicker
                   value={f.iconName}
-                  onChange={(n) => updateFeature(tier.id, f.id, { iconName: n })}
+                  onChange={(n) => setFeature(f.id, { iconName: n })}
                 />
               </div>
               <div className="flex-1">
@@ -351,15 +434,13 @@ function TierEditor({
                   type="text"
                   className={inputCls}
                   value={f.text}
-                  onChange={(e) =>
-                    updateFeature(tier.id, f.id, { text: e.target.value })
-                  }
+                  onChange={(e) => setFeature(f.id, { text: e.target.value })}
                   placeholder="Feature description…"
                 />
               </div>
               <button
                 type="button"
-                onClick={() => removeFeature(tier.id, f.id)}
+                onClick={() => removeFeature(f.id)}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 transition-all hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300"
                 title="Remove feature"
               >
@@ -382,28 +463,17 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const authenticated = useAuthStore((s) => s.authenticated);
   const logout = useAuthStore((s) => s.logout);
-  const tiers = usePricingStore((s) => s.tiers);
-  const resetPricingDefaults = usePricingStore((s) => s.resetDefaults);
 
-  const about = useSiteContentStore((s) => s.content.about);
-  const contact = useSiteContentStore((s) => s.content.contact);
-  const sample = useSiteContentStore((s) => s.content.sampleProjects);
-  const terms = useSiteContentStore((s) => s.content.terms);
-  const setAbout = useSiteContentStore((s) => s.setAbout);
-  const setAboutBullet = useSiteContentStore((s) => s.setAboutBullet);
-  const addAboutBullet = useSiteContentStore((s) => s.addAboutBullet);
-  const removeAboutBullet = useSiteContentStore((s) => s.removeAboutBullet);
-  const setContact = useSiteContentStore((s) => s.setContact);
-  const setSocial = useSiteContentStore((s) => s.setSocial);
-  const addSocial = useSiteContentStore((s) => s.addSocial);
-  const removeSocial = useSiteContentStore((s) => s.removeSocial);
-  const setProjectOption = useSiteContentStore((s) => s.setProjectOption);
-  const addProjectOption = useSiteContentStore((s) => s.addProjectOption);
-  const removeProjectOption = useSiteContentStore((s) => s.removeProjectOption);
-  const setSampleProjects = useSiteContentStore((s) => s.setSampleProjects);
-  const addSampleCard = useSiteContentStore((s) => s.addSampleCard);
-  const setTerms = useSiteContentStore((s) => s.setTerms);
+  const storeTiers = usePricingStore((s) => s.tiers);
+  const resetPricingDefaults = usePricingStore((s) => s.resetDefaults);
+  const pricingSetTiers = usePricingStore((s) => s.setTiers);
+
+  const storeContent = useSiteContentStore((s) => s.content);
   const resetContentDefaults = useSiteContentStore((s) => s.resetDefaults);
+  const contentSetContent = useSiteContentStore((s) =>
+    (c: SiteContent) => useSiteContentStore.setState({ content: c })
+  );
+
   const orders = useOrdersStore((s) => s.orders);
   const nextSequenceNumber = useOrdersStore((s) => s.nextSequenceNumber);
 
@@ -411,6 +481,52 @@ export default function AdminDashboard() {
   const [saved, setSaved] = useState<null | "ok" | "warn" | "saving">(null);
   const [dbSyncFailed, setDbSyncFailed] = useState(false);
   const [diagnoseState, setDiagnoseState] = useState<null | "running" | { ok: true; table: string } | { ok: false; error: string }>(null);
+
+  const initialTiersRef = useRef<PricingTier[]>(cloneTiers(storeTiers));
+  const initialContentRef = useRef<SiteContent>(cloneContent(storeContent));
+
+  const [draftTiers, setDraftTiers] = useState<PricingTier[]>(() => cloneTiers(initialTiersRef.current));
+  const [draftContent, setDraftContent] = useState<SiteContent>(() => cloneContent(initialContentRef.current));
+
+  const isDirty = useMemo(
+    () =>
+      !isEqual(draftTiers, initialTiersRef.current) ||
+      !isEqual(draftContent, initialContentRef.current),
+    [draftTiers, draftContent]
+  );
+
+  const { about, contact, sample: sampleProjects, terms } = useMemo(
+    () => ({
+      about: draftContent.about,
+      contact: draftContent.contact,
+      sample: draftContent.sampleProjects,
+      terms: draftContent.terms,
+    }),
+    [draftContent]
+  );
+
+  const patchAbout = (p: Partial<SiteContent["about"]>) =>
+    setDraftContent((c) => ({ ...c, about: { ...c.about, ...p } }));
+  const patchContact = (p: Partial<SiteContent["contact"]>) =>
+    setDraftContent((c) => ({ ...c, contact: { ...c.contact, ...p } }));
+  const patchSampleProjects = (p: Partial<Omit<SiteContent["sampleProjects"], "cards">>) =>
+    setDraftContent((c) => ({ ...c, sampleProjects: { ...c.sampleProjects, ...p } }));
+  const patchTerms = (p: Partial<SiteContent["terms"]>) =>
+    setDraftContent((c) => ({ ...c, terms: { ...c.terms, ...p } }));
+
+  useEffect(() => {
+    if (!authenticated) navigate("/webify", { replace: true });
+  }, [authenticated, navigate]);
+
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!isDirty) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
 
   const supabaseUrl =
     import.meta.env.VITE_SUPABASE_URL ??
@@ -427,18 +543,12 @@ export default function AdminDashboard() {
     import.meta.env.REACT_APP_SUPABASE_ANON_KEY;
   const envReady = Boolean(supabaseUrl && supabaseKey);
 
-  useEffect(() => {
-    if (!authenticated) navigate("/webify", { replace: true });
-  }, [authenticated, navigate]);
-
   async function runDbSync() {
     const syncPricing = usePricingStore.getState().syncToDatabase();
     const syncContent = useSiteContentStore.getState().syncToDatabase();
     const syncOrders = useOrdersStore.getState().syncToDatabase();
     const [pricingOk, contentOk, ordersOk] = await Promise.all([
-      syncPricing,
-      syncContent,
-      syncOrders,
+      syncPricing, syncContent, syncOrders,
     ]);
     return pricingOk && contentOk && ordersOk;
   }
@@ -468,6 +578,16 @@ export default function AdminDashboard() {
   }
 
   async function handleSave() {
+    if (!isDirty) {
+      setSaved("ok");
+      setTimeout(() => setSaved(null), 1800);
+      return;
+    }
+    pricingSetTiers(cloneTiers(draftTiers));
+    contentSetContent(cloneContent(draftContent));
+    initialTiersRef.current = cloneTiers(draftTiers);
+    initialContentRef.current = cloneContent(draftContent);
+
     setSaved("saving");
     const dbOk = await runDbSync();
     if (dbOk) {
@@ -480,13 +600,30 @@ export default function AdminDashboard() {
     setTimeout(() => setSaved(null), 2800);
   }
 
+  function handleDiscard() {
+    if (!isDirty) return;
+    const ok = window.confirm("Discard unsaved changes? This reverts pricing + content to last saved state.");
+    if (!ok) return;
+    setDraftTiers(cloneTiers(initialTiersRef.current));
+    setDraftContent(cloneContent(initialContentRef.current));
+  }
+
   async function handleResetAll() {
+    const ok = window.confirm("Reset all pricing and content to defaults? This cannot be undone (unless you've saved a backup).");
+    if (!ok) return;
     resetPricingDefaults();
     resetContentDefaults();
+    const freshTiers = usePricingStore.getState().tiers;
+    const freshContent = useSiteContentStore.getState().content;
+    initialTiersRef.current = cloneTiers(freshTiers);
+    initialContentRef.current = cloneContent(freshContent);
+    setDraftTiers(cloneTiers(freshTiers));
+    setDraftContent(cloneContent(freshContent));
     setSaved("saving");
-    const syncPricing = usePricingStore.getState().syncToDatabase();
-    const syncContent = useSiteContentStore.getState().syncToDatabase();
-    const [pricingOk, contentOk] = await Promise.all([syncPricing, syncContent]);
+    const [pricingOk, contentOk] = await Promise.all([
+      usePricingStore.getState().syncToDatabase(),
+      useSiteContentStore.getState().syncToDatabase(),
+    ]);
     const dbOk = pricingOk && contentOk;
     if (dbOk) {
       setDbSyncFailed(false);
@@ -497,6 +634,56 @@ export default function AdminDashboard() {
     }
     setTimeout(() => setSaved(null), 2800);
   }
+
+  const setAboutBullet = (i: number, value: string) => {
+    patchAbout({ bullets: about.bullets.map((b, idx) => (idx === i ? value : b)) });
+  };
+  const addAboutBullet = () => patchAbout({ bullets: [...about.bullets, "New point"] });
+  const removeAboutBullet = (i: number) =>
+    patchAbout({ bullets: about.bullets.filter((_, idx) => idx !== i) });
+
+  const setSocial = (id: string, patch: Partial<SocialLink>) =>
+    patchContact({
+      socials: contact.socials.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    });
+  const addSocial = () =>
+    patchContact({
+      socials: [
+        ...contact.socials,
+        { id: uid(), platform: "instagram" as const, href: "#" },
+      ],
+    });
+  const removeSocial = (id: string) =>
+    patchContact({ socials: contact.socials.filter((s) => s.id !== id) });
+
+  const setProjectOption = (i: number, value: string) =>
+    patchContact({
+      projectOptions: contact.projectOptions.map((o, idx) => (idx === i ? value : o)),
+    });
+  const addProjectOption = () =>
+    patchContact({ projectOptions: [...contact.projectOptions, "New option"] });
+  const removeProjectOption = (i: number) =>
+    patchContact({ projectOptions: contact.projectOptions.filter((_, idx) => idx !== i) });
+
+  const setSampleCard = (id: string, patch: Partial<SampleSiteCard>) =>
+    patchSampleProjects({
+      cards: sampleProjects.cards.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+    } as never);
+  const addSampleCard = () =>
+    patchSampleProjects({
+      cards: [
+        ...sampleProjects.cards,
+        {
+          id: uid(),
+          title: "New project",
+          description: "Describe this project briefly.",
+          imageUrl: "",
+          siteUrl: "https://example.com/",
+          showViewButton: true,
+          viewButtonLabel: "Click to view site",
+        },
+      ],
+    } as never);
 
   const activeTab = TABS.find((t) => t.id === tab)!;
 
@@ -521,8 +708,22 @@ export default function AdminDashboard() {
               <h1 className="font-display text-xl font-black tracking-tight text-white">
                 Content Manager
               </h1>
+              {isDirty && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-200">
+                  <AlertTriangle className="h-3 w-3" /> Unsaved
+                </span>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {isDirty && (
+                <button
+                  type="button"
+                  onClick={handleDiscard}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-slate-300 transition-all hover:border-amber-400/40 hover:text-amber-200"
+                >
+                  <Undo2 className="h-3.5 w-3.5" /> Discard changes
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleResetAll}
@@ -550,15 +751,19 @@ export default function AdminDashboard() {
                     ? "bg-emerald-400 text-ink-950 shadow-[0_0_40px_-10px_rgba(52,211,153,0.8)]"
                     : saved === "warn"
                     ? "bg-amber-400 text-ink-950 shadow-[0_0_40px_-10px_rgba(251,191,36,0.8)]"
-                    : "bg-neon-cyan text-ink-950 shadow-neon hover:shadow-neonLg"
+                    : isDirty
+                    ? "bg-gradient-to-r from-neon-cyan to-neon-purple text-ink-950 shadow-neon hover:shadow-neonLg"
+                    : "bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
                 )}
               >
                 {saved === "saving" ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : saved === "warn" ? (
                   <AlertCircle className="h-3.5 w-3.5" />
-                ) : (
+                ) : saved === "ok" ? (
                   <Save className="h-3.5 w-3.5" />
+                ) : (
+                  <Save className={cn("h-3.5 w-3.5", isDirty && "text-ink-950")} />
                 )}
                 {saved === "saving"
                   ? "Saving…"
@@ -566,11 +771,17 @@ export default function AdminDashboard() {
                   ? "Saved ✓"
                   : saved === "warn"
                   ? "Saved locally (sync DB)"
-                  : "Save changes"}
+                  : isDirty
+                  ? "Save changes*"
+                  : "No changes to save"}
               </button>
               <button
                 type="button"
                 onClick={() => {
+                  if (isDirty) {
+                    const ok = window.confirm("Sign out without saving? Unsaved edits will be discarded.");
+                    if (!ok) return;
+                  }
                   logout();
                   navigate("/webify", { replace: true });
                 }}
@@ -580,6 +791,22 @@ export default function AdminDashboard() {
               </button>
             </div>
           </div>
+
+          {isDirty && (
+            <div className="container pb-4">
+              <div className="flex items-center gap-3 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-xs font-semibold text-amber-200">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                You have unsaved edits. Leaving this page or signing out without clicking Save will revert everything.
+                <button
+                  type="button"
+                  onClick={handleDiscard}
+                  className="ml-auto inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-black/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-100 hover:bg-amber-400/20"
+                >
+                  <Undo2 className="h-3 w-3" /> Discard
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="container pb-4">
             <div className="flex flex-wrap gap-2 rounded-full border border-white/10 bg-white/[0.03] p-1.5 shadow-inner">
@@ -692,20 +919,28 @@ export default function AdminDashboard() {
                     Update tier titles, icons, features & feature icons
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm text-slate-400">
-                    The tiers below render exactly as visitors see them.
-                    Changes auto-save in the browser.
+                    The tiers below render exactly as visitors see them. Edits stay as draft — click Save above to publish.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 sm:justify-end">
-                  <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]" />
-                  Live sync to{" "}
+                  <span className={cn("inline-flex h-2 w-2 rounded-full", isDirty ? "bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.9)]" : "bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]")} />
+                  {isDirty ? "Draft only" : "In sync"} with{" "}
                   <Link to="/pricing" className="text-neon-cyan hover:underline">
                     /pricing
                   </Link>
                   <span className="mx-2 hidden h-4 w-px bg-white/10 sm:inline-block" />
                   <button
                     type="button"
-                    onClick={() => usePricingStore.getState().addTier()}
+                    onClick={() =>
+                      setDraftTiers((prev) => {
+                        const next = [...prev, makeNewTier(prev.length)];
+                        if (next.filter((t) => t.popular).length === 0) {
+                          const i = next.findIndex((t) => t.accent === "highlight");
+                          if (i >= 0) next[i] = { ...next[i], popular: true };
+                        }
+                        return next;
+                      })
+                    }
                     className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-neon-cyan to-neon-purple px-4 py-2 text-[11px] font-bold text-ink-950 shadow-neon transition-all hover:shadow-neonLg"
                   >
                     <Plus className="h-3.5 w-3.5" /> Add bundle
@@ -714,13 +949,16 @@ export default function AdminDashboard() {
               </div>
 
               <div className="grid gap-6 lg:grid-cols-3">
-                {tiers.map((t) => (
+                {draftTiers.map((t) => (
                   <TierEditor
                     key={t.id}
                     tier={t}
-                    canRemove={tiers.length > 1}
+                    canRemove={draftTiers.length > 1}
+                    onChange={(next) =>
+                      setDraftTiers((prev) => prev.map((x) => (x.id === t.id ? next : x)))
+                    }
                     onRemove={() =>
-                      usePricingStore.getState().removeTier(t.id)
+                      setDraftTiers((prev) => prev.filter((x) => x.id !== t.id))
                     }
                   />
                 ))}
@@ -738,8 +976,7 @@ export default function AdminDashboard() {
                   Set headlines, description & selling points
                 </h2>
                 <p className="mt-2 text-sm text-slate-400">
-                  The description below preserves line breaks exactly as you
-                  type them.
+                  The description below preserves line breaks exactly as you type them. Unsaved drafts stay only in this tab.
                 </p>
 
                 <div className="mt-8 grid gap-5 sm:grid-cols-2">
@@ -750,7 +987,7 @@ export default function AdminDashboard() {
                     <input
                       type="text"
                       value={about.eyebrow}
-                      onChange={(e) => setAbout({ eyebrow: e.target.value })}
+                      onChange={(e) => patchAbout({ eyebrow: e.target.value })}
                       className={inputCls}
                     />
                   </label>
@@ -761,9 +998,7 @@ export default function AdminDashboard() {
                     <input
                       type="text"
                       value={about.titleHighlight}
-                      onChange={(e) =>
-                        setAbout({ titleHighlight: e.target.value })
-                      }
+                      onChange={(e) => patchAbout({ titleHighlight: e.target.value })}
                       className={inputCls}
                     />
                   </label>
@@ -777,7 +1012,7 @@ export default function AdminDashboard() {
                     <textarea
                       rows={5}
                       value={about.description}
-                      onChange={(e) => setAbout({ description: e.target.value })}
+                      onChange={(e) => patchAbout({ description: e.target.value })}
                       className={inputCls + " font-sans leading-relaxed"}
                     />
                   </label>
@@ -850,7 +1085,7 @@ export default function AdminDashboard() {
                     <input
                       type="text"
                       value={contact.eyebrow}
-                      onChange={(e) => setContact({ eyebrow: e.target.value })}
+                      onChange={(e) => patchContact({ eyebrow: e.target.value })}
                       className={inputCls}
                     />
                   </label>
@@ -862,7 +1097,7 @@ export default function AdminDashboard() {
                     <input
                       type="text"
                       value={contact.introTitle}
-                      onChange={(e) => setContact({ introTitle: e.target.value })}
+                      onChange={(e) => patchContact({ introTitle: e.target.value })}
                       className={inputCls}
                     />
                   </label>
@@ -874,7 +1109,7 @@ export default function AdminDashboard() {
                     <textarea
                       rows={3}
                       value={contact.intro}
-                      onChange={(e) => setContact({ intro: e.target.value })}
+                      onChange={(e) => patchContact({ intro: e.target.value })}
                       className={inputCls}
                     />
                   </label>
@@ -884,8 +1119,8 @@ export default function AdminDashboard() {
                     icon={<Phone className="h-4 w-4 text-neon-cyan" />}
                     labelValue={contact.phoneLabel}
                     value={contact.phone}
-                    onChangeLabel={(v) => setContact({ phoneLabel: v })}
-                    onChangeValue={(v) => setContact({ phone: v })}
+                    onChangeLabel={(v) => patchContact({ phoneLabel: v })}
+                    onChangeValue={(v) => patchContact({ phone: v })}
                   />
 
                   <InfoField
@@ -893,8 +1128,8 @@ export default function AdminDashboard() {
                     icon={<Mail className="h-4 w-4 text-neon-purple" />}
                     labelValue={contact.emailLabel}
                     value={contact.email}
-                    onChangeLabel={(v) => setContact({ emailLabel: v })}
-                    onChangeValue={(v) => setContact({ email: v })}
+                    onChangeLabel={(v) => patchContact({ emailLabel: v })}
+                    onChangeValue={(v) => patchContact({ email: v })}
                   />
                 </div>
 
@@ -922,9 +1157,7 @@ export default function AdminDashboard() {
                       <SocialRow
                         key={s.id}
                         social={s}
-                        onChangeLabel={(platform) =>
-                          setSocial(s.id, { platform })
-                        }
+                        onChangeLabel={(platform) => setSocial(s.id, { platform })}
                         onChangeHref={(href) => setSocial(s.id, { href })}
                         onRemove={() => removeSocial(s.id)}
                       />
@@ -954,7 +1187,7 @@ export default function AdminDashboard() {
                     <input
                       type="text"
                       value={contact.formTitle}
-                      onChange={(e) => setContact({ formTitle: e.target.value })}
+                      onChange={(e) => patchContact({ formTitle: e.target.value })}
                       className={inputCls}
                     />
                   </label>
@@ -969,9 +1202,7 @@ export default function AdminDashboard() {
                     <input
                       type="text"
                       value={contact.whatsappNumber}
-                      onChange={(e) =>
-                        setContact({ whatsappNumber: e.target.value })
-                      }
+                      onChange={(e) => patchContact({ whatsappNumber: e.target.value })}
                       placeholder="96181193419"
                       className={inputCls}
                     />
@@ -1043,14 +1274,12 @@ export default function AdminDashboard() {
                     Showcase cards — photo, title, description & view button
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm text-slate-400">
-                    Upload project cards. Each card shows a photo with an
-                    optional "Click to view site" button overlay in the top
-                    corner. Card shape only — no "Featured"/"Sale" overlays.
+                    Upload project cards. Each card shows a photo with an optional "Click to view site" button overlay. Drafts unsaved until Save.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 sm:justify-end">
-                  <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]" />
-                  Live sync to{" "}
+                  <span className={cn("inline-flex h-2 w-2 rounded-full", isDirty ? "bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.9)]" : "bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]")} />
+                  {isDirty ? "Draft only" : "In sync"} with{" "}
                   <Link to="/sample-projects" className="text-neon-cyan hover:underline">
                     /sample-projects
                   </Link>
@@ -1081,8 +1310,8 @@ export default function AdminDashboard() {
                       </span>
                       <input
                         type="text"
-                        value={sample.eyebrow}
-                        onChange={(e) => setSampleProjects({ eyebrow: e.target.value })}
+                        value={sampleProjects.eyebrow}
+                        onChange={(e) => patchSampleProjects({ eyebrow: e.target.value } as never)}
                         className={inputCls}
                       />
                     </label>
@@ -1094,8 +1323,8 @@ export default function AdminDashboard() {
                         </span>
                         <input
                           type="text"
-                          value={sample.title}
-                          onChange={(e) => setSampleProjects({ title: e.target.value })}
+                          value={sampleProjects.title}
+                          onChange={(e) => patchSampleProjects({ title: e.target.value } as never)}
                           className={inputCls}
                           placeholder="Sites we've"
                         />
@@ -1106,8 +1335,8 @@ export default function AdminDashboard() {
                         </span>
                         <input
                           type="text"
-                          value={sample.titleHighlight}
-                          onChange={(e) => setSampleProjects({ titleHighlight: e.target.value })}
+                          value={sampleProjects.titleHighlight}
+                          onChange={(e) => patchSampleProjects({ titleHighlight: e.target.value } as never)}
                           className={inputCls}
                           placeholder="shipped for clients"
                         />
@@ -1120,8 +1349,8 @@ export default function AdminDashboard() {
                       </span>
                       <textarea
                         rows={3}
-                        value={sample.subtitle}
-                        onChange={(e) => setSampleProjects({ subtitle: e.target.value })}
+                        value={sampleProjects.subtitle}
+                        onChange={(e) => patchSampleProjects({ subtitle: e.target.value } as never)}
                         className={inputCls}
                       />
                     </label>
@@ -1130,13 +1359,22 @@ export default function AdminDashboard() {
 
                 <section className="lg:col-span-3">
                   <div className="grid gap-5 md:grid-cols-2">
-                    {sample.cards.length === 0 && (
+                    {sampleProjects.cards.length === 0 && (
                       <div className="glass-pill md:col-span-2 rounded-3xl p-8 text-center text-sm text-slate-400">
                         No cards yet — click <b className="text-white">"Add card"</b> above.
                       </div>
                     )}
-                    {sample.cards.map((card) => (
-                      <SampleCardEditor key={card.id} card={card} />
+                    {sampleProjects.cards.map((card) => (
+                      <SampleCardEditor
+                        key={card.id}
+                        card={card}
+                        onChange={(next) => setSampleCard(card.id, next)}
+                        onRemove={() =>
+                          patchSampleProjects({
+                            cards: sampleProjects.cards.filter((c) => c.id !== card.id),
+                          } as never)
+                        }
+                      />
                     ))}
                   </div>
                 </section>
@@ -1155,12 +1393,7 @@ export default function AdminDashboard() {
                     Customer bundle orders
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm text-slate-400">
-                    Each order stores the customer phone number, site name,
-                    customer name, notes, and the generated
-                    <span className="mx-1 font-semibold text-white">
-                      PN-0001-Bundle Name
-                    </span>
-                    code.
+                    Read only — each order stores its data as submitted. To edit/delete, use the Supabase table directly.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3 text-xs text-slate-300">
@@ -1288,8 +1521,7 @@ export default function AdminDashboard() {
                   Page headline
                 </h2>
                 <p className="mt-2 text-sm text-slate-400">
-                  Controls the eyebrow, gradient title and intro paragraph
-                  shown above the body on <Link to="/terms" className="text-neon-cyan hover:underline">/terms</Link>.
+                  Controls the eyebrow, gradient title and intro paragraph shown above the body on <Link to="/terms" className="text-neon-cyan hover:underline">/terms</Link>.
                 </p>
 
                 <div className="mt-6 space-y-5">
@@ -1300,7 +1532,7 @@ export default function AdminDashboard() {
                     <input
                       type="text"
                       value={terms.eyebrow}
-                      onChange={(e) => setTerms({ eyebrow: e.target.value })}
+                      onChange={(e) => patchTerms({ eyebrow: e.target.value })}
                       className={inputCls}
                     />
                   </label>
@@ -1312,7 +1544,7 @@ export default function AdminDashboard() {
                       <input
                         type="text"
                         value={terms.title}
-                        onChange={(e) => setTerms({ title: e.target.value })}
+                        onChange={(e) => patchTerms({ title: e.target.value })}
                         className={inputCls}
                       />
                     </label>
@@ -1323,7 +1555,7 @@ export default function AdminDashboard() {
                       <input
                         type="text"
                         value={terms.titleHighlight}
-                        onChange={(e) => setTerms({ titleHighlight: e.target.value })}
+                        onChange={(e) => patchTerms({ titleHighlight: e.target.value })}
                         className={inputCls}
                       />
                     </label>
@@ -1335,7 +1567,7 @@ export default function AdminDashboard() {
                     <textarea
                       rows={3}
                       value={terms.intro}
-                      onChange={(e) => setTerms({ intro: e.target.value })}
+                      onChange={(e) => patchTerms({ intro: e.target.value })}
                       className={inputCls}
                     />
                   </label>
@@ -1352,13 +1584,12 @@ export default function AdminDashboard() {
                       Terms content
                     </h2>
                     <p className="mt-2 text-sm text-slate-400">
-                      Separate paragraphs with a blank line. Line breaks are
-                      preserved.
+                      Separate paragraphs with a blank line. Line breaks are preserved.
                     </p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setTerms({ body: TERMS_TEMPLATE_BODY })}
+                    onClick={() => patchTerms({ body: TERMS_TEMPLATE_BODY })}
                     className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-slate-300 transition-all hover:border-neon-cyan/40 hover:text-neon-cyan"
                   >
                     <RefreshCw className="h-3.5 w-3.5" /> Restore template
@@ -1369,7 +1600,7 @@ export default function AdminDashboard() {
                   <textarea
                     rows={28}
                     value={terms.body}
-                    onChange={(e) => setTerms({ body: e.target.value })}
+                    onChange={(e) => patchTerms({ body: e.target.value })}
                     className={inputCls + " font-mono text-[13px] leading-6"}
                   />
                 </label>
@@ -1382,7 +1613,9 @@ export default function AdminDashboard() {
           <div className="container flex flex-col items-center justify-between gap-3 text-xs text-slate-500 sm:flex-row">
             <p>© {new Date().getFullYear()} webify · Admin dashboard</p>
             <p>
-              Changes persist via <code className="rounded bg-white/5 px-1.5 py-0.5">localStorage</code> on this device.
+              {isDirty
+                ? "Draft only — edits are LOCAL to this browser tab. Click Save above to publish."
+                : "Live data loaded from last saved state."}
             </p>
           </div>
         </footer>
@@ -1391,23 +1624,26 @@ export default function AdminDashboard() {
   );
 }
 
-function SampleCardEditor({ card }: { card: SampleSiteCard }) {
-  const setSampleCard = useSiteContentStore((s) => s.setSampleCard);
-  const removeSampleCard = useSiteContentStore((s) => s.removeSampleCard);
-
+function SampleCardEditor({
+  card,
+  onChange,
+  onRemove,
+}: {
+  card: SampleSiteCard;
+  onChange: (patch: Partial<SampleSiteCard>) => void;
+  onRemove: () => void;
+}) {
   function handleImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-
     if (!file.type.startsWith("image/")) {
       event.target.value = "";
       return;
     }
-
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === "string") {
-        setSampleCard(card.id, { imageUrl: reader.result });
+        onChange({ imageUrl: reader.result });
       }
     };
     reader.readAsDataURL(file);
@@ -1426,7 +1662,7 @@ function SampleCardEditor({ card }: { card: SampleSiteCard }) {
               <input
                 type="text"
                 value={card.title}
-                onChange={(e) => setSampleCard(card.id, { title: e.target.value })}
+                onChange={(e) => onChange({ title: e.target.value })}
                 placeholder="Project title…"
                 className={inputCls + " py-2 font-bold"}
               />
@@ -1435,7 +1671,7 @@ function SampleCardEditor({ card }: { card: SampleSiteCard }) {
         </div>
         <button
           type="button"
-          onClick={() => removeSampleCard(card.id)}
+          onClick={onRemove}
           className="inline-flex h-9 w-9 flex-none items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 transition-all hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300"
           title="Remove card"
         >
@@ -1469,11 +1705,11 @@ function SampleCardEditor({ card }: { card: SampleSiteCard }) {
               />
             </label>
             <p className="text-xs leading-5 text-slate-500">
-              Choose an image from your device. It will be saved in this browser for this card.
+              Choose an image from your device. Stays local to draft until Save.
             </p>
             <button
               type="button"
-              onClick={() => setSampleCard(card.id, { imageUrl: "" })}
+              onClick={() => onChange({ imageUrl: "" })}
               className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-slate-300 transition-all hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300"
             >
               Remove image
@@ -1489,7 +1725,7 @@ function SampleCardEditor({ card }: { card: SampleSiteCard }) {
         <textarea
           rows={3}
           value={card.description}
-          onChange={(e) => setSampleCard(card.id, { description: e.target.value })}
+          onChange={(e) => onChange({ description: e.target.value })}
           className={inputCls}
           placeholder="What is this project, who was it for, and what did we ship?"
         />
@@ -1502,7 +1738,7 @@ function SampleCardEditor({ card }: { card: SampleSiteCard }) {
         <input
           type="url"
           value={card.siteUrl}
-          onChange={(e) => setSampleCard(card.id, { siteUrl: e.target.value })}
+          onChange={(e) => onChange({ siteUrl: e.target.value })}
           className={inputCls}
           placeholder="https://example.com/"
         />
@@ -1512,7 +1748,7 @@ function SampleCardEditor({ card }: { card: SampleSiteCard }) {
         <label className="flex items-center gap-3 text-xs text-slate-300">
           <button
             type="button"
-            onClick={() => setSampleCard(card.id, { showViewButton: !card.showViewButton })}
+            onClick={() => onChange({ showViewButton: !card.showViewButton })}
             className={cn(
               "text-neon-cyan transition-all",
               card.showViewButton ? "text-neon-cyan" : "text-slate-600"
@@ -1536,7 +1772,7 @@ function SampleCardEditor({ card }: { card: SampleSiteCard }) {
         <input
           type="text"
           value={card.viewButtonLabel}
-          onChange={(e) => setSampleCard(card.id, { viewButtonLabel: e.target.value })}
+          onChange={(e) => onChange({ viewButtonLabel: e.target.value })}
           className={inputCls + " max-w-[240px] py-2 text-xs"}
           placeholder="Click to view site"
         />
@@ -1612,9 +1848,7 @@ function SocialRow({
       </span>
       <select
         value={social.platform}
-        onChange={(e) =>
-          onChangeLabel(e.target.value as SocialLink["platform"])
-        }
+        onChange={(e) => onChangeLabel(e.target.value as SocialLink["platform"])}
         className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-neon-cyan/50"
         aria-label="Social platform"
       >
