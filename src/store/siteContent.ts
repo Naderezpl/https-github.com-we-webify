@@ -1,10 +1,17 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import { createClient } from "@/utils/supabase/client";
+import { getPersistedContent } from "@/utils/persistedSiteState";
 
 export type SocialLink = {
   id: string;
-  platform: "instagram" | "facebook" | "twitter" | "tiktok" | "linkedin" | "youtube" | "whatsapp";
+  platform:
+    | "instagram"
+    | "facebook"
+    | "twitter"
+    | "tiktok"
+    | "linkedin"
+    | "youtube"
+    | "whatsapp";
   href: string;
 };
 
@@ -60,13 +67,8 @@ export type SiteContent = {
 };
 
 const uid = () =>
-  (crypto?.randomUUID?.() ??
-    Math.random().toString(36).slice(2) + Date.now().toString(36));
-
-const sampleImage = (seed: string) =>
-  `https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=${encodeURIComponent(
-    `Modern dark-themed professional website mockup, neon cyan purple accents, glassmorphism ui, ${seed}`
-  )}&image_size=landscape_16_9`;
+  crypto?.randomUUID?.() ??
+  Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 export const TERMS_TEMPLATE_BODY = `1. Services
 Webify (hereafter "we", "us", "our") designs, builds, and delivers custom websites, landing pages, e-commerce stores, and related digital services on a project-by-project basis. By requesting a quote, signing a proposal, or otherwise engaging us to deliver services, you ("the Client") agree to these terms.
@@ -159,6 +161,8 @@ const defaults: SiteContent = {
   },
 };
 
+const initialContent = getPersistedContent() ?? defaults;
+
 type State = {
   content: SiteContent;
   setAbout: (patch: Partial<SiteContent["about"]>) => void;
@@ -172,7 +176,9 @@ type State = {
   setProjectOption: (i: number, value: string) => void;
   addProjectOption: () => void;
   removeProjectOption: (i: number) => void;
-  setSampleProjects: (patch: Partial<Omit<SiteContent["sampleProjects"], "cards">>) => void;
+  setSampleProjects: (
+    patch: Partial<Omit<SiteContent["sampleProjects"], "cards">>,
+  ) => void;
   setSampleCard: (id: string, patch: Partial<SampleSiteCard>) => void;
   addSampleCard: () => void;
   removeSampleCard: (id: string) => void;
@@ -186,255 +192,242 @@ function isPartialSiteContent(obj: unknown): obj is Partial<SiteContent> {
   return typeof obj === "object" && obj !== null;
 }
 
-export const useSiteContentStore = create<State>()(
-  persist(
-    (set, get) => ({
-      content: defaults,
-      setAbout: (patch) =>
-        set((s) => ({
-          content: { ...s.content, about: { ...s.content.about, ...patch } },
-        })),
-      setAboutBullet: (i, value) =>
-        set((s) => {
-          const next = [...s.content.about.bullets];
-          next[i] = value;
-          return {
-            content: {
-              ...s.content,
-              about: { ...s.content.about, bullets: next },
-            },
-          };
-        }),
-      addAboutBullet: () =>
-        set((s) => ({
-          content: {
-            ...s.content,
-            about: {
-              ...s.content.about,
-              bullets: [...s.content.about.bullets, "New point"],
-            },
-          },
-        })),
-      removeAboutBullet: (i) =>
-        set((s) => ({
-          content: {
-            ...s.content,
-            about: {
-              ...s.content.about,
-              bullets: s.content.about.bullets.filter((_, idx) => idx !== i),
-            },
-          },
-        })),
-      setContact: (patch) =>
-        set((s) => ({
-          content: {
-            ...s.content,
-            contact: { ...s.content.contact, ...patch },
-          },
-        })),
-      setSocial: (id, patch) =>
-        set((s) => ({
-          content: {
-            ...s.content,
-            contact: {
-              ...s.content.contact,
-              socials: s.content.contact.socials.map((x) =>
-                x.id === id ? { ...x, ...patch } : x
-              ),
-            },
-          },
-        })),
-      addSocial: () =>
-        set((s) => ({
-          content: {
-            ...s.content,
-            contact: {
-              ...s.content.contact,
-              socials: [
-                ...s.content.contact.socials,
-                { id: uid(), platform: "instagram", href: "#" },
-              ],
-            },
-          },
-        })),
-      removeSocial: (id) =>
-        set((s) => ({
-          content: {
-            ...s.content,
-            contact: {
-              ...s.content.contact,
-              socials: s.content.contact.socials.filter((x) => x.id !== id),
-            },
-          },
-        })),
-      setProjectOption: (i, value) =>
-        set((s) => {
-          const next = [...s.content.contact.projectOptions];
-          next[i] = value;
-          return {
-            content: {
-              ...s.content,
-              contact: { ...s.content.contact, projectOptions: next },
-            },
-          };
-        }),
-      addProjectOption: () =>
-        set((s) => ({
-          content: {
-            ...s.content,
-            contact: {
-              ...s.content.contact,
-              projectOptions: [...s.content.contact.projectOptions, "New option"],
-            },
-          },
-        })),
-      removeProjectOption: (i) =>
-        set((s) => ({
-          content: {
-            ...s.content,
-            contact: {
-              ...s.content.contact,
-              projectOptions: s.content.contact.projectOptions.filter(
-                (_, idx) => idx !== i
-              ),
-            },
-          },
-        })),
-      setSampleProjects: (patch) =>
-        set((s) => ({
-          content: {
-            ...s.content,
-            sampleProjects: { ...s.content.sampleProjects, ...patch },
-          },
-        })),
-      setSampleCard: (id, patch) =>
-        set((s) => ({
-          content: {
-            ...s.content,
-            sampleProjects: {
-              ...s.content.sampleProjects,
-              cards: s.content.sampleProjects.cards.map((c) =>
-                c.id === id ? { ...c, ...patch } : c
-              ),
-            },
-          },
-        })),
-      addSampleCard: () =>
-        set((s) => {
-          const n = s.content.sampleProjects.cards.length + 1;
-          return {
-            content: {
-              ...s.content,
-              sampleProjects: {
-                ...s.content.sampleProjects,
-                cards: [
-                  ...s.content.sampleProjects.cards,
-                  {
-                    id: uid(),
-                    title: `Project ${n}`,
-                    description:
-                      "Describe what this website is for, who the client is, and what was delivered.",
-                    imageUrl: "",
-                    siteUrl: "",
-                    showViewButton: false,
-                    viewButtonLabel: "View site",
-                  },
-                ],
-              },
-            },
-          };
-        }),
-      removeSampleCard: (id) =>
-        set((s) => ({
-          content: {
-            ...s.content,
-            sampleProjects: {
-              ...s.content.sampleProjects,
-              cards: s.content.sampleProjects.cards.filter((c) => c.id !== id),
-            },
-          },
-        })),
-      setTerms: (patch) =>
-        set((s) => ({
-          content: { ...s.content, terms: { ...s.content.terms, ...patch } },
-        })),
-      resetDefaults: () => set({ content: defaults }),
-      syncToDatabase: async () => {
-        try {
-          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-          if (!supabaseUrl) return false;
-          const supabase = createClient();
-          const content = get().content;
-          const { error } = await supabase
-            .from("site_settings")
-            .upsert(
-              { id: "main", content: content, updated_at: new Date().toISOString() },
-              { onConflict: "id" }
-            );
-          if (error) {
-            console.error("SiteContent syncToDatabase error:", error);
-            return false;
-          }
-          return true;
-        } catch (err) {
-          console.error("SiteContent syncToDatabase failed:", err);
-          return false;
-        }
-      },
-      syncFromDatabase: async () => {
-        try {
-          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-          if (!supabaseUrl) return false;
-          const supabase = createClient();
-          const { data, error } = await supabase
-            .from("site_settings")
-            .select("content")
-            .eq("id", "main")
-            .maybeSingle();
-          if (error) {
-            console.error("SiteContent syncFromDatabase error:", error);
-            return false;
-          }
-          if (!data) {
-            const seedOk = await get().syncToDatabase();
-            return seedOk;
-          }
-          const dbContent =
-            data.content && isPartialSiteContent(data.content)
-              ? (data.content as Partial<SiteContent>)
-              : null;
-          if (dbContent) {
-            const merged: SiteContent = {
-              about: { ...defaults.about, ...(dbContent.about ?? {}) },
-              contact: { ...defaults.contact, ...(dbContent.contact ?? {}) },
-              sampleProjects: {
-                ...defaults.sampleProjects,
-                ...(dbContent.sampleProjects ?? {}),
-                cards: Array.isArray(dbContent.sampleProjects?.cards)
-                  ? dbContent.sampleProjects!.cards
-                  : [],
-              },
-              terms: { ...defaults.terms, ...(dbContent.terms ?? {}) },
-            };
-            set({ content: merged });
-          }
-          return true;
-        } catch (err) {
-          console.error("SiteContent syncFromDatabase failed:", err);
-          return false;
-        }
-      },
+export const useSiteContentStore = create<State>()((set, get) => ({
+  content: initialContent,
+  setAbout: (patch) =>
+    set((s) => ({
+      content: { ...s.content, about: { ...s.content.about, ...patch } },
+    })),
+  setAboutBullet: (i, value) =>
+    set((s) => {
+      const next = [...s.content.about.bullets];
+      next[i] = value;
+      return {
+        content: {
+          ...s.content,
+          about: { ...s.content.about, bullets: next },
+        },
+      };
     }),
-    {
-      name: "webify.sitecontent.v6",
-      version: 6,
-      migrate: (_persistedState: unknown, version: number) => {
-        // All versions before 6: discard legacy localStorage cache so DB is always the source of truth.
-        if (version < 6) {
-          return { content: defaults };
-        }
-        return { content: defaults };
+  addAboutBullet: () =>
+    set((s) => ({
+      content: {
+        ...s.content,
+        about: {
+          ...s.content.about,
+          bullets: [...s.content.about.bullets, "New point"],
+        },
       },
+    })),
+  removeAboutBullet: (i) =>
+    set((s) => ({
+      content: {
+        ...s.content,
+        about: {
+          ...s.content.about,
+          bullets: s.content.about.bullets.filter((_, idx) => idx !== i),
+        },
+      },
+    })),
+  setContact: (patch) =>
+    set((s) => ({
+      content: {
+        ...s.content,
+        contact: { ...s.content.contact, ...patch },
+      },
+    })),
+  setSocial: (id, patch) =>
+    set((s) => ({
+      content: {
+        ...s.content,
+        contact: {
+          ...s.content.contact,
+          socials: s.content.contact.socials.map((x) =>
+            x.id === id ? { ...x, ...patch } : x,
+          ),
+        },
+      },
+    })),
+  addSocial: () =>
+    set((s) => ({
+      content: {
+        ...s.content,
+        contact: {
+          ...s.content.contact,
+          socials: [
+            ...s.content.contact.socials,
+            { id: uid(), platform: "instagram", href: "#" },
+          ],
+        },
+      },
+    })),
+  removeSocial: (id) =>
+    set((s) => ({
+      content: {
+        ...s.content,
+        contact: {
+          ...s.content.contact,
+          socials: s.content.contact.socials.filter((x) => x.id !== id),
+        },
+      },
+    })),
+  setProjectOption: (i, value) =>
+    set((s) => {
+      const next = [...s.content.contact.projectOptions];
+      next[i] = value;
+      return {
+        content: {
+          ...s.content,
+          contact: { ...s.content.contact, projectOptions: next },
+        },
+      };
+    }),
+  addProjectOption: () =>
+    set((s) => ({
+      content: {
+        ...s.content,
+        contact: {
+          ...s.content.contact,
+          projectOptions: [...s.content.contact.projectOptions, "New option"],
+        },
+      },
+    })),
+  removeProjectOption: (i) =>
+    set((s) => ({
+      content: {
+        ...s.content,
+        contact: {
+          ...s.content.contact,
+          projectOptions: s.content.contact.projectOptions.filter(
+            (_, idx) => idx !== i,
+          ),
+        },
+      },
+    })),
+  setSampleProjects: (patch) =>
+    set((s) => ({
+      content: {
+        ...s.content,
+        sampleProjects: { ...s.content.sampleProjects, ...patch },
+      },
+    })),
+  setSampleCard: (id, patch) =>
+    set((s) => ({
+      content: {
+        ...s.content,
+        sampleProjects: {
+          ...s.content.sampleProjects,
+          cards: s.content.sampleProjects.cards.map((c) =>
+            c.id === id ? { ...c, ...patch } : c,
+          ),
+        },
+      },
+    })),
+  addSampleCard: () =>
+    set((s) => {
+      const n = s.content.sampleProjects.cards.length + 1;
+      return {
+        content: {
+          ...s.content,
+          sampleProjects: {
+            ...s.content.sampleProjects,
+            cards: [
+              ...s.content.sampleProjects.cards,
+              {
+                id: uid(),
+                title: `Project ${n}`,
+                description:
+                  "Describe what this website is for, who the client is, and what was delivered.",
+                imageUrl: "",
+                siteUrl: "",
+                showViewButton: false,
+                viewButtonLabel: "View site",
+              },
+            ],
+          },
+        },
+      };
+    }),
+  removeSampleCard: (id) =>
+    set((s) => ({
+      content: {
+        ...s.content,
+        sampleProjects: {
+          ...s.content.sampleProjects,
+          cards: s.content.sampleProjects.cards.filter((c) => c.id !== id),
+        },
+      },
+    })),
+  setTerms: (patch) =>
+    set((s) => ({
+      content: { ...s.content, terms: { ...s.content.terms, ...patch } },
+    })),
+  resetDefaults: () => set({ content: defaults }),
+  syncToDatabase: async () => {
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      if (!supabaseUrl) return false;
+      const supabase = createClient();
+      const content = get().content;
+      const { error } = await supabase.from("site_settings").upsert(
+        {
+          id: "main",
+          content: content,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" },
+      );
+      if (error) {
+        console.error("SiteContent syncToDatabase error:", error);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error("SiteContent syncToDatabase failed:", err);
+      return false;
     }
-  )
-);
+  },
+  syncFromDatabase: async () => {
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      if (!supabaseUrl) return false;
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("site_settings")
+        .select("content")
+        .eq("id", "main")
+        .maybeSingle();
+      if (error) {
+        console.error("SiteContent syncFromDatabase error:", error);
+        return false;
+      }
+      if (!data) {
+        const seedOk = await get().syncToDatabase();
+        return seedOk;
+      }
+      const dbContent =
+        data.content && isPartialSiteContent(data.content)
+          ? (data.content as Partial<SiteContent>)
+          : null;
+      if (dbContent) {
+        const merged: SiteContent = {
+          about: { ...defaults.about, ...(dbContent.about ?? {}) },
+          contact: { ...defaults.contact, ...(dbContent.contact ?? {}) },
+          sampleProjects: {
+            ...defaults.sampleProjects,
+            ...(dbContent.sampleProjects ?? {}),
+            cards: Array.isArray(dbContent.sampleProjects?.cards)
+              ? dbContent.sampleProjects!.cards
+              : [],
+          },
+          terms: { ...defaults.terms, ...(dbContent.terms ?? {}) },
+        };
+        set({ content: merged });
+      }
+      return true;
+    } catch (err) {
+      console.error("SiteContent syncFromDatabase failed:", err);
+      return false;
+    }
+  },
+}));

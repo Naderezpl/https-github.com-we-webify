@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import { createClient } from "@/utils/supabase/client";
+import { getPersistedPricingTiers } from "@/utils/persistedSiteState";
 
 export type TierAccent = "cyan" | "purple" | "highlight";
 
@@ -55,8 +55,8 @@ export const DEFAULT_TIER_ICON_NAMES = [
 export type TierIconName = (typeof DEFAULT_TIER_ICON_NAMES)[number];
 
 const uid = () =>
-  (crypto?.randomUUID?.() ??
-    Math.random().toString(36).slice(2) + Date.now().toString(36));
+  crypto?.randomUUID?.() ??
+  Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 const defaultTiers: PricingTier[] = [
   {
@@ -68,10 +68,26 @@ const defaultTiers: PricingTier[] = [
     accent: "cyan",
     iconName: "Rocket",
     features: [
-      { id: uid(), text: "1-page responsive design (hero + 4 sections)", iconName: "Layers" },
-      { id: uid(), text: "Performance-optimized Vite build (95+ Lighthouse)", iconName: "Zap" },
-      { id: uid(), text: "Contact form, analytics, and SEO basics", iconName: "ShieldCheck" },
-      { id: uid(), text: "2 design revisions + 1 round of polish", iconName: "Sparkles" },
+      {
+        id: uid(),
+        text: "1-page responsive design (hero + 4 sections)",
+        iconName: "Layers",
+      },
+      {
+        id: uid(),
+        text: "Performance-optimized Vite build (95+ Lighthouse)",
+        iconName: "Zap",
+      },
+      {
+        id: uid(),
+        text: "Contact form, analytics, and SEO basics",
+        iconName: "ShieldCheck",
+      },
+      {
+        id: uid(),
+        text: "2 design revisions + 1 round of polish",
+        iconName: "Sparkles",
+      },
       { id: uid(), text: "Delivered in 5 business days", iconName: "Target" },
     ],
     cta: "Start Basic",
@@ -86,12 +102,32 @@ const defaultTiers: PricingTier[] = [
     iconName: "Building2",
     popular: true,
     features: [
-      { id: uid(), text: "Unlimited pages & custom integrations", iconName: "Globe" },
-      { id: uid(), text: "E-commerce (Stripe), dashboards & auth flows", iconName: "ShoppingBag" },
+      {
+        id: uid(),
+        text: "Unlimited pages & custom integrations",
+        iconName: "Globe",
+      },
+      {
+        id: uid(),
+        text: "E-commerce (Stripe), dashboards & auth flows",
+        iconName: "ShoppingBag",
+      },
       { id: uid(), text: "Payment + email + CRM webhooks", iconName: "Radio" },
-      { id: uid(), text: "Full design system + Storybook components", iconName: "Puzzle" },
-      { id: uid(), text: "Technical onboarding & handoff docs", iconName: "BookOpen" },
-      { id: uid(), text: "Priority 90-day support SLA", iconName: "ShieldCheck" },
+      {
+        id: uid(),
+        text: "Full design system + Storybook components",
+        iconName: "Puzzle",
+      },
+      {
+        id: uid(),
+        text: "Technical onboarding & handoff docs",
+        iconName: "BookOpen",
+      },
+      {
+        id: uid(),
+        text: "Priority 90-day support SLA",
+        iconName: "ShieldCheck",
+      },
     ],
     cta: "Go Professional",
   },
@@ -106,14 +142,28 @@ const defaultTiers: PricingTier[] = [
     features: [
       { id: uid(), text: "Uptime monitoring & 24/7 alerts", iconName: "Radar" },
       { id: uid(), text: "Weekly backups + rollback", iconName: "ShieldCheck" },
-      { id: uid(), text: "Core updates (framework, CMS, plugins, packages)", iconName: "Zap" },
+      {
+        id: uid(),
+        text: "Core updates (framework, CMS, plugins, packages)",
+        iconName: "Zap",
+      },
       { id: uid(), text: "Security patches & SSL renewal", iconName: "Lock" },
-      { id: uid(), text: "Up to 1 hour of small edits per month", iconName: "WandSparkles" },
-      { id: uid(), text: "Email support SLA — reply within 48h", iconName: "Mail" },
+      {
+        id: uid(),
+        text: "Up to 1 hour of small edits per month",
+        iconName: "WandSparkles",
+      },
+      {
+        id: uid(),
+        text: "Email support SLA — reply within 48h",
+        iconName: "Mail",
+      },
     ],
     cta: "Add Maintenance",
   },
 ];
+
+const initialTiers = getPersistedPricingTiers() ?? defaultTiers;
 
 type PricingState = {
   tiers: PricingTier[];
@@ -124,7 +174,7 @@ type PricingState = {
   updateFeature: (
     tierId: string,
     featureId: string,
-    patch: Partial<PricingFeature>
+    patch: Partial<PricingFeature>,
   ) => void;
   addFeature: (tierId: string) => void;
   removeFeature: (tierId: string, featureId: string) => void;
@@ -133,187 +183,185 @@ type PricingState = {
   syncFromDatabase: () => Promise<boolean>;
 };
 
-export const usePricingStore = create<PricingState>()(
-  persist(
-    (set, get) => ({
-      tiers: defaultTiers,
-      setTiers: (tiers) => set({ tiers }),
-      addTier: () =>
-        set((s) => {
-          const existingIndex = s.tiers.length;
-          const accents: TierAccent[] = ["cyan", "highlight", "purple"];
-          const accent = accents[existingIndex % accents.length];
-          const name =
-            accent === "cyan"
-              ? "Starter"
-              : accent === "highlight"
-              ? "Premium"
-              : "Enterprise";
-          const iconName =
-            accent === "cyan"
-              ? "Rocket"
-              : accent === "highlight"
-              ? "Layers"
-              : "Building2";
-          const price =
-            accent === "cyan"
-              ? "from $490"
-              : accent === "highlight"
-              ? "from $2,490"
-              : "Custom";
-          const period =
-            accent === "cyan"
-              ? "per project"
-              : accent === "highlight"
-              ? "per project"
-              : "custom quote";
+export const usePricingStore = create<PricingState>()((set, get) => ({
+  tiers: initialTiers,
+  setTiers: (tiers) => set({ tiers }),
+  addTier: () =>
+    set((s) => {
+      const existingIndex = s.tiers.length;
+      const accents: TierAccent[] = ["cyan", "highlight", "purple"];
+      const accent = accents[existingIndex % accents.length];
+      const name =
+        accent === "cyan"
+          ? "Starter"
+          : accent === "highlight"
+            ? "Premium"
+            : "Enterprise";
+      const iconName =
+        accent === "cyan"
+          ? "Rocket"
+          : accent === "highlight"
+            ? "Layers"
+            : "Building2";
+      const price =
+        accent === "cyan"
+          ? "from $490"
+          : accent === "highlight"
+            ? "from $2,490"
+            : "Custom";
+      const period =
+        accent === "cyan"
+          ? "per project"
+          : accent === "highlight"
+            ? "per project"
+            : "custom quote";
 
-          const nextPopular = s.tiers.some((t) => t.popular)
-            ? false
-            : accent === "highlight";
+      const nextPopular = s.tiers.some((t) => t.popular)
+        ? false
+        : accent === "highlight";
 
-          const newTier: PricingTier = {
+      const newTier: PricingTier = {
+        id: uid(),
+        name: `${name} ${existingIndex + 1}`.replace(/ 1$/, ""),
+        tagline: "Add a short tagline explaining who this bundle is for.",
+        price,
+        period,
+        accent,
+        iconName,
+        popular: nextPopular,
+        features: [
+          {
             id: uid(),
-            name: `${name} ${existingIndex + 1}`.replace(/ 1$/, ""),
-            tagline:
-              "Add a short tagline explaining who this bundle is for.",
-            price,
-            period,
-            accent,
-            iconName,
-            popular: nextPopular,
-            features: [
-              { id: uid(), text: "Describe what is included in this tier.", iconName: "Check" },
-              { id: uid(), text: "Click + to add more features here.", iconName: "Sparkles" },
-            ],
-            cta: accent === "purple" ? "Talk to sales" : "Choose plan",
-          };
-          return { tiers: [...s.tiers, newTier] };
-        }),
-      removeTier: (id) =>
-        set((s) => {
-          const next = s.tiers.filter((t) => t.id !== id);
-          if (next.length === 0) return s;
-          if (next.filter((t) => t.popular).length <= 1) return { tiers: next };
-          const firstPopular = next.findIndex((t) => t.popular);
-          return {
-            tiers: next.map((t, i) =>
-              i === firstPopular ? t : { ...t, popular: false }
-            ),
-          };
-        }),
-      updateTier: (id, patch) =>
-        set((s) => ({
-          tiers: s.tiers.map((t) => (t.id === id ? { ...t, ...patch } : t)),
-        })),
-      updateFeature: (tierId, featureId, patch) =>
-        set((s) => ({
-          tiers: s.tiers.map((t) =>
-            t.id !== tierId
-              ? t
-              : {
-                  ...t,
-                  features: t.features.map((f) =>
-                    f.id === featureId ? { ...f, ...patch } : f
-                  ),
-                }
-          ),
-        })),
-      addFeature: (tierId) =>
-        set((s) => ({
-          tiers: s.tiers.map((t) =>
-            t.id !== tierId
-              ? t
-              : {
-                  ...t,
-                  features: [
-                    ...t.features,
-                    { id: uid(), text: "New feature", iconName: "Check" },
-                  ],
-                }
-          ),
-        })),
-      removeFeature: (tierId, featureId) =>
-        set((s) => ({
-          tiers: s.tiers.map((t) =>
-            t.id !== tierId
-              ? t
-              : {
-                  ...t,
-                  features: t.features.filter((f) => f.id !== featureId),
-                }
-          ),
-        })),
-      resetDefaults: () => set({ tiers: defaultTiers }),
-      syncToDatabase: async () => {
-        try {
-          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-          if (!supabaseUrl) return false;
-          const supabase = createClient();
-          const tiers = get().tiers;
-          const { error } = await supabase
-            .from("site_settings")
-            .upsert(
-              { id: "main", pricing: { tiers }, updated_at: new Date().toISOString() },
-              { onConflict: "id" }
-            );
-          if (error) {
-            console.error("Pricing syncToDatabase error:", error);
-            return false;
-          }
-          return true;
-        } catch (err) {
-          console.error("Pricing syncToDatabase failed:", err);
-          return false;
-        }
-      },
-      syncFromDatabase: async () => {
-        try {
-          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-          if (!supabaseUrl) return false;
-          const supabase = createClient();
-          const { data, error } = await supabase
-            .from("site_settings")
-            .select("pricing")
-            .eq("id", "main")
-            .maybeSingle();
-          if (error) {
-            console.error("Pricing syncFromDatabase error:", error);
-            return false;
-          }
-          if (!data) {
-            // No row yet - seed the DB with defaults so next boot loads from DB
-            const seedOk = await get().syncToDatabase();
-            return seedOk;
-          }
-          const pricing =
-            data.pricing && typeof data.pricing === "object"
-              ? (data.pricing as Record<string, unknown>)
-              : null;
-          const hasTiersKey = !!pricing && Array.isArray((pricing as Record<string, unknown>).tiers);
-          if (hasTiersKey) {
-            const parsedTiers = (pricing as Record<string, unknown>).tiers as PricingTier[];
-            // Accept even empty array = user intentionally cleared all. Only fall back if not array.
-            set({ tiers: parsedTiers });
-          }
-          // Row exists but pricing column empty - keep current (default/cached) state
-          return true;
-        } catch (err) {
-          console.error("Pricing syncFromDatabase failed:", err);
-          return false;
-        }
-      },
+            text: "Describe what is included in this tier.",
+            iconName: "Check",
+          },
+          {
+            id: uid(),
+            text: "Click + to add more features here.",
+            iconName: "Sparkles",
+          },
+        ],
+        cta: accent === "purple" ? "Talk to sales" : "Choose plan",
+      };
+      return { tiers: [...s.tiers, newTier] };
     }),
-    {
-      name: "webify.pricing.v4",
-      version: 4,
-      migrate: (persistedState: unknown, version: number) => {
-        // Old versions (< 4): discard previous localStorage cache so DB is always source of truth on first boot.
-        if (version < 4) {
-          return { tiers: defaultTiers };
-        }
-        return persistedState as { tiers: PricingTier[] };
-      },
+  removeTier: (id) =>
+    set((s) => {
+      const next = s.tiers.filter((t) => t.id !== id);
+      if (next.length === 0) return s;
+      if (next.filter((t) => t.popular).length <= 1) return { tiers: next };
+      const firstPopular = next.findIndex((t) => t.popular);
+      return {
+        tiers: next.map((t, i) =>
+          i === firstPopular ? t : { ...t, popular: false },
+        ),
+      };
+    }),
+  updateTier: (id, patch) =>
+    set((s) => ({
+      tiers: s.tiers.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+    })),
+  updateFeature: (tierId, featureId, patch) =>
+    set((s) => ({
+      tiers: s.tiers.map((t) =>
+        t.id !== tierId
+          ? t
+          : {
+              ...t,
+              features: t.features.map((f) =>
+                f.id === featureId ? { ...f, ...patch } : f,
+              ),
+            },
+      ),
+    })),
+  addFeature: (tierId) =>
+    set((s) => ({
+      tiers: s.tiers.map((t) =>
+        t.id !== tierId
+          ? t
+          : {
+              ...t,
+              features: [
+                ...t.features,
+                { id: uid(), text: "New feature", iconName: "Check" },
+              ],
+            },
+      ),
+    })),
+  removeFeature: (tierId, featureId) =>
+    set((s) => ({
+      tiers: s.tiers.map((t) =>
+        t.id !== tierId
+          ? t
+          : {
+              ...t,
+              features: t.features.filter((f) => f.id !== featureId),
+            },
+      ),
+    })),
+  resetDefaults: () => set({ tiers: defaultTiers }),
+  syncToDatabase: async () => {
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      if (!supabaseUrl) return false;
+      const supabase = createClient();
+      const tiers = get().tiers;
+      const { error } = await supabase
+        .from("site_settings")
+        .upsert(
+          {
+            id: "main",
+            pricing: { tiers },
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" },
+        );
+      if (error) {
+        console.error("Pricing syncToDatabase error:", error);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error("Pricing syncToDatabase failed:", err);
+      return false;
     }
-  )
-);
+  },
+  syncFromDatabase: async () => {
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      if (!supabaseUrl) return false;
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("site_settings")
+        .select("pricing")
+        .eq("id", "main")
+        .maybeSingle();
+      if (error) {
+        console.error("Pricing syncFromDatabase error:", error);
+        return false;
+      }
+      if (!data) {
+        // No row yet - seed the DB with defaults so next boot loads from DB
+        const seedOk = await get().syncToDatabase();
+        return seedOk;
+      }
+      const pricing =
+        data.pricing && typeof data.pricing === "object"
+          ? (data.pricing as Record<string, unknown>)
+          : null;
+      const hasTiersKey =
+        !!pricing && Array.isArray((pricing as Record<string, unknown>).tiers);
+      if (hasTiersKey) {
+        const parsedTiers = (pricing as Record<string, unknown>)
+          .tiers as PricingTier[];
+        // Accept even empty array = user intentionally cleared all. Only fall back if not array.
+        set({ tiers: parsedTiers });
+      }
+      // Row exists but pricing column empty - keep current (default/cached) state
+      return true;
+    } catch (err) {
+      console.error("Pricing syncFromDatabase failed:", err);
+      return false;
+    }
+  },
+}));
