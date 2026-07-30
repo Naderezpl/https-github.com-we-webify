@@ -14,7 +14,6 @@ import { useSiteContentStore } from "@/store/siteContent";
 import { useOrdersStore } from "@/store/orders";
 import {
   getPersistedSiteStateSignature,
-  hasPersistedSiteState,
   readPersistedSiteState,
   type PersistedSiteStateData,
   writePersistedSiteState,
@@ -66,7 +65,6 @@ function getCurrentPublishedState(): PersistedSiteStateData {
 
 export default function App() {
   const initialSnapshot = useMemo(() => readPersistedSiteState(), []);
-  const hasCachedSnapshot = initialSnapshot !== null;
   const [status, setStatus] = useState<BootSyncStatus>("booting");
   const [syncedAt, setSyncedAt] = useState<number | null>(null);
   const lastPersistedSignatureRef = useRef(
@@ -197,31 +195,6 @@ export default function App() {
     () => ({ status, syncedAt, resync }),
     [status, syncedAt, resync],
   );
-
-  if (status === "booting" && !hasCachedSnapshot && !hasPersistedSiteState()) {
-    // Only block paint when there is truly no saved snapshot to show yet.
-    return (
-      <div className="relative min-h-screen w-full overflow-hidden bg-[#050815] text-white">
-        <div className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-cyan-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute bottom-0 right-0 h-[420px] w-[420px] rounded-full bg-violet-500/20 blur-3xl" />
-        <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 text-center">
-          <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan-400/70 border-t-transparent" />
-          </div>
-          <h1 className="bg-gradient-to-br from-white via-white to-cyan-100 bg-clip-text text-3xl font-semibold tracking-tight text-transparent sm:text-4xl">
-            Loading your content…
-          </h1>
-          <p className="mt-3 max-w-md text-sm leading-6 text-slate-400">
-            Syncing bundles, sample projects, orders and content from the live
-            database.
-            {!import.meta.env.VITE_SUPABASE_URL
-              ? " (VITE_SUPABASE_URL not set — will fall back to offline cache)"
-              : ""}
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <BootContext.Provider value={bootContext}>
