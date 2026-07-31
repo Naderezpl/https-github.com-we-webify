@@ -1,5 +1,10 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useLocation,
+} from "react-router-dom";
 import Home from "@/pages/Home";
 import Pricing from "@/pages/Pricing";
 import About from "@/pages/About";
@@ -61,6 +66,25 @@ function getCurrentPublishedState(): PersistedSiteStateData {
     orders: ordersState.orders,
     nextSequenceNumber: ordersState.nextSequenceNumber,
   };
+}
+
+function ScrollToTopOnRouteChange() {
+  const location = useLocation();
+
+  useEffect(() => {
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+
+    return () => {
+      window.history.scrollRestoration = previousScrollRestoration;
+    };
+  }, []);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location.pathname]);
+
+  return null;
 }
 
 export default function App() {
@@ -199,6 +223,7 @@ export default function App() {
   return (
     <BootContext.Provider value={bootContext}>
       <Router>
+        <ScrollToTopOnRouteChange />
         <SecretAdminTrigger />
         <Suspense
           fallback={
